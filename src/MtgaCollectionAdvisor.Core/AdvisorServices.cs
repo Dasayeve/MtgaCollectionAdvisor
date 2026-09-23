@@ -1,6 +1,7 @@
 using MtgaCollectionAdvisor.Core.Analysis;
 using MtgaCollectionAdvisor.Core.Cards;
 using MtgaCollectionAdvisor.Core.Configuration;
+using MtgaCollectionAdvisor.Core.Creators;
 using MtgaCollectionAdvisor.Core.Decks;
 using MtgaCollectionAdvisor.Core.Logs;
 using MtgaCollectionAdvisor.Core.Memory;
@@ -49,7 +50,13 @@ public sealed class AdvisorServices : IAsyncDisposable
 
         ArchidektHttpClient = ArchidektClient.CreateHttpClient();
         ArchidektClient = new ArchidektClient(ArchidektHttpClient);
+
+        YouTubeHttpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(20) };
+        YouTubeFeedClient = new YouTubeFeedClient(YouTubeHttpClient);
     }
+
+    public HttpClient YouTubeHttpClient { get; }
+    public YouTubeFeedClient YouTubeFeedClient { get; }
 
     public static async Task<AdvisorServices> CreateAsync(AppConfig config, CancellationToken ct = default)
     {
@@ -63,6 +70,7 @@ public sealed class AdvisorServices : IAsyncDisposable
         PlayerLogWatcher.Dispose();
         ScryfallHttpClient.Dispose();
         ArchidektHttpClient.Dispose();
+        YouTubeHttpClient.Dispose();
         return ValueTask.CompletedTask;
     }
 }

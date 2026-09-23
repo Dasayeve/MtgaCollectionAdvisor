@@ -77,6 +77,10 @@ public sealed class ArchidektClient(HttpClient httpClient)
         return decks;
     }
 
+    /// <summary>One deck by id, e.g. linked from a video description. Null if unreadable.</summary>
+    public Task<CandidateDeck?> TryFetchDeckAsync(int id, FormatDefinition format, CancellationToken ct = default) =>
+        TryFetchDeckDetailAsync(new ArchidektDeckSummary { Id = id }, format, DateTimeOffset.UtcNow, ct);
+
     private async Task<CandidateDeck?> TryFetchDeckDetailAsync(
         ArchidektDeckSummary summary, FormatDefinition format, DateTimeOffset fetchedAt, CancellationToken ct)
     {

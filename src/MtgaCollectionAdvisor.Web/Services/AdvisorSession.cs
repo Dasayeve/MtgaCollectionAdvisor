@@ -1,5 +1,6 @@
 using MtgaCollectionAdvisor.Core;
 using MtgaCollectionAdvisor.Core.Configuration;
+using MtgaCollectionAdvisor.Core.Creators;
 using MtgaCollectionAdvisor.Core.Decks;
 using MtgaCollectionAdvisor.Core.Memory;
 using MtgaCollectionAdvisor.Core.Models;
@@ -186,8 +187,72 @@ public sealed class AdvisorSession(AppConfig config) : IDisposable
         }
     }
 
+    // ---------- SPIKE: creator videos ----------
+
+    public IReadOnlyList<CreatorVideoCard> CreatorVideos { get; private set; } = [];
+
+    /// <summary>
+    /// Pulls every curated channel's feed and, where the description gives the deck away,
+    /// analyses it exactly like any other deck: as Arena text through the preview path.
+    /// </summary>
+    public Task LoadCreatorVideosAsync() => RunAsync("Loading creator videos", async report =>
+    {
+        var feeds = await Task.WhenAll(CreatorChannels.All.Select(async c =>
+        {
+            try { return await services.YouTubeFeedClient.FetchAsync(c); }
+            catch { return (IReadOnlyList<CreatorVideo>)[]; }
+        }));
+
+        var videos = feeds.SelectMany(f => f).OrderByDescending(v => v.Published).ToList();
+        var cards = new List<CreatorVideoCard>(videos.Count);
+
+        foreach (var video in videos)
+        {
+            report($"Analysing creator decks ({cards.Count + 1}/{videos.Count})...");
+            var source = VideoDeckExtractor.Extract(video.Description);
+
+            var decklist = source.Kind switch
+            {
+                DeckSourceKind.InlineList => source.Decklist,
+                DeckSourceKind.Archidekt => await ArchidektListAsync(source.ArchidektId!.Value),
+                _ => null
+            };
+
+            var (format, analysis) = decklist is null ? (null, null) : await BestFormatAsync(decklist);
+            cards.Add(new CreatorVideoCard(video, source, decklist, format, analysis));
+        }
+
+        CreatorVideos = cards;
+        var withDeck = cards.Count(c => c.Analysis is not null);
+        report($"{cards.Count} creator videos, {withDeck} with a deck read automatically.");
+    });
+
+    private async Task<string?> ArchidektListAsync(int id)
+    {
+        var deck = await services.ArchidektClient.TryFetchDeckAsync(id, Formats.Standard);
+        return deck is null ? null : ArenaDeckListWriter.Write(deck);
+    }
+
+    /// <summary>
+    /// A video's format is only in its title, so try each format the app knows and keep
+    /// the one the list is legal in. A Historic list is legal in neither and says so.
+    /// </summary>
+    private async Task<(FormatDefinition?, DeckAnalysisResult?)> BestFormatAsync(string decklist)
+    {
+        (FormatDefinition?, DeckAnalysisResult?) best = (null, null);
+        foreach (var format in Formats.All)
+        {
+            var result = await PreviewDeckAsync(format, decklist);
+            if (result is null) continue;
+            if (result.IllegalInFormat.Count == 0) return (format, result);
+            if (best.Item2 is null || result.IllegalInFormat.Count < best.Item2.IllegalInFormat.Count)
+                best = (format, result);
+        }
+        return best;
+    }
+
     /// <summary>Adds a deck pasted by hand (Arena export format) to the candidate pool.</summary>
-    public Task ImportDeckAsync(string name, FormatDefinition format, string decklist) =>
+    public Task ImportDeckAsync(string name, FormatDefinition format, string decklist, string sourceUrl = "") =>
         RunAsync("Importing deck", async report =>
         {
             var cards = ArenaDeckListParser.Parse(decklist);
@@ -200,7 +265,7 @@ public sealed class AdvisorSession(AppConfig config) : IDisposable
             var deck = new CandidateDeck(
                 SourceId: $"{CandidateDeck.ManualSourcePrefix}{Guid.NewGuid()}",
                 Name: name,
-                Url: "",
+                Url: sourceUrl,
                 FormatKey: format.Key,
                 Popularity: 0,
                 Cards: cards,
@@ -351,3 +416,11 @@ public sealed class AdvisorSession(AppConfig config) : IDisposable
         _operationGate.Dispose();
     }
 }
+
+/// <summary>SPIKE: one video with whatever we managed to learn about its deck.</summary>
+public sealed record CreatorVideoCard(
+    CreatorVideo Video,
+    VideoDeckSource Source,
+    string? Decklist,
+    FormatDefinition? Format,
+    DeckAnalysisResult? Analysis);

@@ -1,0 +1,190 @@
+@page "/creators"
+@implements IDisposable
+@inject AdvisorSession Session
+@using MtgaCollectionAdvisor.Core.Creators
+@using MtgaCollectionAdvisor.Core.Models
+
+@* SPIKE: creator videos as a deck source. The video is always the way in - the deck,
+   when we can read it, is what makes the card worth more than a thumbnail. *@
+
+<PageTitle>Creator decks</PageTitle>
+
+<div class="creators-page">
+    <div class="panel creators-toolbar">
+        <div class="creators-heading">
+            <h2>Creator decks</h2>
+            <span class="result-count">
+                @Shown.Count of @Session.CreatorVideos.Count videos from @CreatorChannels.All.Count creators
+            </span>
+        </div>
+
+        <div class="creators-filters">
+            <select value="@_creator" @onchange="e => _creator = e.Value?.ToString() ?? string.Empty">
+                <option value="">All creators</option>
+                @foreach (var channel in CreatorChannels.All.OrderBy(c => c.Name))
+                {
+                    <option value="@channel.Name">@channel.Name</option>
+                }
+            </select>
+            <label class="checkbox-row">
+                <input type="checkbox" checked="@_onlyWithDeck" @onchange="e => _onlyWithDeck = (bool)e.Value!" />
+                <span>Deck read automatically</span>
+            </label>
+            <label class="checkbox-row">
+                <input type="checkbox" checked="@_onlyCraftable" @onchange="e => _onlyCraftable = (bool)e.Value!" />
+                <span>Craftable now</span>
+            </label>
+            <select value="@_sort" @onchange="e => _sort = e.Value?.ToString() ?? SortNewest">
+                <option value="@SortNewest">Newest first</option>
+                <option value="@SortCheapest">Cheapest to finish</option>
+            </select>
+            <button disabled="@Session.IsBusy" @onclick="() => Session.LoadCreatorVideosAsync()">Refresh</button>
+        </div>
+    </div>
+
+    @if (Session.CreatorVideos.Count == 0)
+    {
+        <div class="panel empty">
+            <h3>@(Session.IsBusy ? "Loading creator videos..." : "No creator videos loaded")</h3>
+            <p>Videos come from each creator's public YouTube feed.</p>
+        </div>
+    }
+    else
+    {
+        <div class="video-grid">
+            @foreach (var card in Shown)
+            {
+                var video = card.Video;
+                <article class="video-card">
+                    <a class="video-thumb" href="@video.Url" target="_blank" rel="noopener" title="Watch on YouTube">
+                        <img src="@video.ThumbnailUrl" alt="" loading="lazy" />
+                        <span class="play" aria-hidden="true">▶</span>
+                    </a>
+
+                    <div class="video-body">
+                        <div class="video-title" title="@video.Title">@video.Title</div>
+                        <div class="deck-meta">@video.Creator · @Ago(video.Published)</div>
+
+                        @if (card.Analysis is { } deck)
+                        {
+                            <div class="video-deck">
+                                <WildcardCost Needed="deck.Needed" />
+                                <span class="owned-value">@deck.OwnedFraction.ToString("P0") owned</span>
+                                @if (deck.Needed.IsAffordableWith(Session.Collection.Wildcards))
+                                {
+                                    <span class="badge yes">craftable</span>
+                                }
+                            </div>
+                            <div class="video-format">
+                                <ManaColors Colors="@deck.Colors" />
+                                @if (deck.IllegalInFormat.Count == 0)
+                                {
+                                    <span class="format-chip">@card.Format!.DisplayName</span>
+                                }
+                                else
+                                {
+                                    <span class="format-chip off" title="@string.Join(", ", deck.IllegalInFormat)">
+                                        not Standard/Pioneer
+                                    </span>
+                                }
+                            </div>
+                            <div class="video-actions">
+                                <a href="@video.Url" target="_blank" rel="noopener"><button class="primary">▶ Watch</button></a>
+                                <button @onclick="() => OpenImport(card)">Add to my decks</button>
+                            </div>
+                        }
+                        else if (card.Source.Kind == DeckSourceKind.External)
+                        {
+                            <div class="video-deck muted">Deck on @card.Source.ExternalSite</div>
+                            <div class="video-actions">
+                                <a href="@video.Url" target="_blank" rel="noopener"><button class="primary">▶ Watch</button></a>
+                                @* Opens the creator's list and our import side by side: export it there,
+                                   paste it here. We never read their site. *@
+                                <a href="@card.Source.ExternalUrl" target="_blank" rel="noopener"
+                                   @onclick="() => OpenImport(card)">
+                                    <button>Import deck</button>
+                                </a>
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="video-deck muted">No list in the description</div>
+                            <div class="video-actions">
+                                <a href="@video.Url" target="_blank" rel="noopener"><button class="primary">▶ Watch</button></a>
+                            </div>
+                        }
+                    </div>
+                </article>
+            }
+        </div>
+    }
+</div>
+
+@if (_importing is { } importing)
+{
+    <DeckDialog InitialName="@ShortTitle(importing.Video.Title)"
+                InitialDecklist="@importing.Decklist"
+                InitialFormat="@importing.Format"
+                SourceUrl="@importing.Video.Url"
+                OnClose="() => _importing = null" />
+}
+
+@code {
+    private const string SortNewest = "newest";
+    private const string SortCheapest = "cheapest";
+
+    private string _creator = string.Empty;
+    private bool _onlyWithDeck;
+    private bool _onlyCraftable;
+    private string _sort = SortNewest;
+    private CreatorVideoCard? _importing;
+
+    protected override void OnInitialized() => Session.Changed += OnSessionChanged;
+
+    // Not awaited, and not during prerender: analysing every video's deck takes a while,
+    // and the page should paint first and fill in as the session reports progress.
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (firstRender && Session.CreatorVideos.Count == 0 && !Session.IsBusy)
+        {
+            _ = Session.LoadCreatorVideosAsync();
+        }
+    }
+
+    private void OnSessionChanged() => InvokeAsync(StateHasChanged);
+
+    private List<CreatorVideoCard> Shown
+    {
+        get
+        {
+            IEnumerable<CreatorVideoCard> query = Session.CreatorVideos;
+            if (_creator.Length > 0) query = query.Where(c => c.Video.Creator == _creator);
+            if (_onlyWithDeck) query = query.Where(c => c.Analysis is not null);
+            if (_onlyCraftable)
+                query = query.Where(c => c.Analysis?.Needed.IsAffordableWith(Session.Collection.Wildcards) == true);
+
+            query = _sort == SortCheapest
+                ? query.OrderBy(c => c.Analysis is null).ThenBy(c => c.Analysis?.Needed.Total ?? int.MaxValue)
+                : query.OrderByDescending(c => c.Video.Published);
+            return query.ToList();
+        }
+    }
+
+    private void OpenImport(CreatorVideoCard card) => _importing = card;
+
+    /// <summary>Video titles are clickbait-long; the part before a separator names the deck.</summary>
+    private static string ShortTitle(string title)
+    {
+        var cut = title.IndexOfAny(['|', '★', '#']);
+        var name = (cut > 8 ? title[..cut] : title).Trim();
+        return name.Length > 60 ? name[..60].Trim() : name;
+    }
+
+    private static string Ago(DateTimeOffset when)
+    {
+        var days = (int)(DateTimeOffset.UtcNow - when).TotalDays;
+        return days switch { 0 => "today", 1 => "1 day ago", < 60 => $"{days} days ago", _ => when.ToString("d MMM yyyy") };
+    }
+
+    public void Dispose() => Session.Changed -= OnSessionChanged;
+}

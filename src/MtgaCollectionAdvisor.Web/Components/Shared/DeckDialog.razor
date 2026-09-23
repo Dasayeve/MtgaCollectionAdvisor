@@ -74,6 +74,12 @@
     /// <summary>The deck being edited; null opens the dialog for a new one.</summary>
     [Parameter] public CandidateDeck? Deck { get; set; }
 
+    // SPIKE: a new deck can open pre-filled from a creator video, which becomes its source.
+    [Parameter] public string? InitialName { get; set; }
+    [Parameter] public string? InitialDecklist { get; set; }
+    [Parameter] public FormatDefinition? InitialFormat { get; set; }
+    [Parameter] public string SourceUrl { get; set; } = "";
+
     private bool IsEdit => Deck is not null;
 
     private string _name = string.Empty;
@@ -87,7 +93,9 @@
     {
         if (Deck is null)
         {
-            _format = Session.Format;
+            _format = InitialFormat ?? Session.Format;
+            _name = InitialName ?? string.Empty;
+            _decklist = InitialDecklist ?? string.Empty;
             return;
         }
 
@@ -141,7 +149,7 @@
 
         if (Deck is null)
         {
-            await Session.ImportDeckAsync(_name.Trim(), _format, _decklist);
+            await Session.ImportDeckAsync(_name.Trim(), _format, _decklist, SourceUrl);
         }
         else
         {
