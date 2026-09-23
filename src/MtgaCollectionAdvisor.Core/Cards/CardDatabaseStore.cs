@@ -151,12 +151,18 @@ public sealed class CardDatabaseStore(Database database)
             SELECT grp_id, name, set_code, mana_cost, colors, rarity, standard_legal, pioneer_legal
             FROM cards
             WHERE name = $name COLLATE NOCASE
-               OR name LIKE $frontFace ESCAPE '\' COLLATE NOCASE
+            UNION ALL
+            SELECT grp_id, name, set_code, mana_cost, colors, rarity, standard_legal, pioneer_legal
+            FROM cards
+            WHERE name >= $frontFace COLLATE NOCASE AND name < $frontFaceEnd COLLATE NOCASE
             """;
         command.Parameters.AddWithValue("$name", name);
-        // The name comes from a pasted decklist, so neutralise LIKE's own wildcards
-        // before appending ours - an unescaped % would match the whole table.
-        command.Parameters.AddWithValue("$frontFace", Escape(name) + " // %");
+        // "Starts with 'name // '" as a range, not LIKE: an OR with a LIKE ... ESCAPE
+        // keeps SQLite off ix_cards_name and scans all ~20k rows for every card of every
+        // deck (~2 ms each, ~200x slower). '!' is the character after the space, so the
+        // range holds exactly the names with that prefix. No wildcards, nothing to escape.
+        command.Parameters.AddWithValue("$frontFace", name + " // ");
+        command.Parameters.AddWithValue("$frontFaceEnd", name + " //!");
 
         var results = new List<CardInfo>();
         await using var reader = await command.ExecuteReaderAsync(ct);

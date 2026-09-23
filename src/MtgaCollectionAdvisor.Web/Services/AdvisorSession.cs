@@ -193,62 +193,119 @@ public sealed class AdvisorSession(AppConfig config) : IDisposable
 
     /// <summary>
     /// Pulls every curated channel's feed and, where the description gives the deck away,
-    /// analyses it exactly like any other deck: as Arena text through the preview path.
+    /// analyses it exactly like any other deck.
+    ///
+    /// What a video's deck *is* never changes once published, so that is cached on disk
+    /// (<see cref="CreatorVideoCache"/>): Archidekt is asked about a video once, ever, and
+    /// the feeds only when the cache is older than <see cref="CreatorVideoCache.MaxAge"/>.
+    /// What the deck *costs* depends on the collection, so that is always computed fresh.
     /// </summary>
-    public Task LoadCreatorVideosAsync() => RunAsync("Loading creator videos", async report =>
+    public Task LoadCreatorVideosAsync(bool force = false) => RunAsync("Loading creator videos", async report =>
     {
-        var feeds = await Task.WhenAll(CreatorChannels.All.Select(async c =>
+        var total = System.Diagnostics.Stopwatch.StartNew();
+        var cache = await CreatorVideoCache.LoadAsync();
+        var fromCache = !force && cache.IsFresh;
+        var archidektFetches = 0;
+        var failedFeeds = 0;
+
+        if (!fromCache)
         {
-            try { return await services.YouTubeFeedClient.FetchAsync(c); }
-            catch { return (IReadOnlyList<CreatorVideo>)[]; }
-        }));
-
-        var videos = feeds.SelectMany(f => f).OrderByDescending(v => v.Published).ToList();
-        var cards = new List<CreatorVideoCard>(videos.Count);
-
-        foreach (var video in videos)
-        {
-            report($"Analysing creator decks ({cards.Count + 1}/{videos.Count})...");
-            var source = VideoDeckExtractor.Extract(video.Description);
-
-            var decklist = source.Kind switch
+            var feeds = await Task.WhenAll(CreatorChannels.All.Select(async c =>
             {
-                DeckSourceKind.InlineList => source.Decklist,
-                DeckSourceKind.Archidekt => await ArchidektListAsync(source.ArchidektId!.Value),
-                _ => null
-            };
+                try { return (Channel: c, Videos: await services.YouTubeFeedClient.FetchAsync(c)); }
+                catch { return (Channel: c, Videos: (IReadOnlyList<CreatorVideo>?)null); }
+            }));
 
-            var (format, analysis) = decklist is null ? (null, null) : await BestFormatAsync(decklist);
-            cards.Add(new CreatorVideoCard(video, source, decklist, format, analysis));
+            // A feed that failed this time is not a creator with no videos: YouTube
+            // refuses the odd request, and treating that as empty would wipe the channel
+            // from the cache. Keep what we already knew about it instead.
+            var failed = feeds.Where(f => f.Videos is null).Select(f => f.Channel.Name).ToHashSet();
+            var entries = cache.Videos.Where(v => failed.Contains(v.Video.Creator)).ToList();
+            failedFeeds = failed.Count;
+
+            foreach (var video in feeds.SelectMany(f => f.Videos ?? []))
+            {
+                if (cache.Find(video.VideoId) is { } known)
+                {
+                    entries.Add(known with { Video = video });
+                    continue;
+                }
+
+                var source = VideoDeckExtractor.Extract(video.Description);
+                var decklist = source.Kind switch
+                {
+                    DeckSourceKind.InlineList => source.Decklist,
+                    DeckSourceKind.Archidekt => await ArchidektListAsync(source.ArchidektId!.Value),
+                    _ => null
+                };
+                if (source.Kind == DeckSourceKind.Archidekt) archidektFetches++;
+                entries.Add(new CachedCreatorVideo(video, source with { Decklist = null }, decklist));
+            }
+
+            cache = new CreatorVideoCache(DateTimeOffset.UtcNow, entries);
+            await cache.SaveAsync();
         }
 
-        CreatorVideos = cards;
-        var withDeck = cards.Count(c => c.Analysis is not null);
-        report($"{cards.Count} creator videos, {withDeck} with a deck read automatically.");
+        var fetchTime = total.Elapsed;
+        var analysis = System.Diagnostics.Stopwatch.StartNew();
+
+        CreatorVideos = await AnalyseCreatorVideosAsync(cache.Videos);
+
+        var withDeck = CreatorVideos.Count(c => c.Analysis is not null);
+        var origin = fromCache ? "cache" : $"fetch+{archidektFetches}arch, {failedFeeds} feeds failed";
+        report($"[{origin} {fetchTime.TotalSeconds:F1}s, analysis {analysis.Elapsed.TotalSeconds:F1}s, " +
+               $"total {total.Elapsed.TotalSeconds:F1}s] {CreatorVideos.Count} videos, {withDeck} with deck");
     });
+
+    /// <summary>
+    /// One ranking pass per format over every video's deck, rather than one per video:
+    /// the ranking shares its card-name lookups across a pass, so each card is resolved
+    /// once instead of once per deck it appears in.
+    /// </summary>
+    private async Task<IReadOnlyList<CreatorVideoCard>> AnalyseCreatorVideosAsync(
+        IReadOnlyList<CachedCreatorVideo> videos)
+    {
+        var drafts = videos
+            .Where(v => v.Decklist is not null)
+            .Select(v => new CandidateDeck(
+                SourceId: $"video:{v.Video.VideoId}",
+                Name: v.Video.Title,
+                Url: v.Video.Url,
+                FormatKey: Format.Key,
+                Popularity: 0,
+                Cards: ArenaDeckListParser.Parse(v.Decklist!),
+                FetchedAt: v.Video.Published))
+            .Where(d => d.Cards.Count > 0)
+            .ToList();
+
+        // The format is only in a video's title, so keep whichever format the list is
+        // (most nearly) legal in. A Historic list is legal in neither and says so.
+        var best = new Dictionary<string, (FormatDefinition Format, DeckAnalysisResult Result)>();
+        foreach (var format in Formats.All)
+        {
+            foreach (var result in await services.DeckRankingService.RankAsync(format, drafts, Collection))
+            {
+                var id = result.Deck.SourceId;
+                if (!best.TryGetValue(id, out var current)
+                    || result.IllegalInFormat.Count < current.Result.IllegalInFormat.Count)
+                {
+                    best[id] = (format, result);
+                }
+            }
+        }
+
+        return videos
+            .OrderByDescending(v => v.Video.Published)
+            .Select(v => best.TryGetValue($"video:{v.Video.VideoId}", out var hit)
+                ? new CreatorVideoCard(v.Video, v.Source, v.Decklist, hit.Format, hit.Result)
+                : new CreatorVideoCard(v.Video, v.Source, v.Decklist, null, null))
+            .ToList();
+    }
 
     private async Task<string?> ArchidektListAsync(int id)
     {
         var deck = await services.ArchidektClient.TryFetchDeckAsync(id, Formats.Standard);
         return deck is null ? null : ArenaDeckListWriter.Write(deck);
-    }
-
-    /// <summary>
-    /// A video's format is only in its title, so try each format the app knows and keep
-    /// the one the list is legal in. A Historic list is legal in neither and says so.
-    /// </summary>
-    private async Task<(FormatDefinition?, DeckAnalysisResult?)> BestFormatAsync(string decklist)
-    {
-        (FormatDefinition?, DeckAnalysisResult?) best = (null, null);
-        foreach (var format in Formats.All)
-        {
-            var result = await PreviewDeckAsync(format, decklist);
-            if (result is null) continue;
-            if (result.IllegalInFormat.Count == 0) return (format, result);
-            if (best.Item2 is null || result.IllegalInFormat.Count < best.Item2.IllegalInFormat.Count)
-                best = (format, result);
-        }
-        return best;
     }
 
     /// <summary>Adds a deck pasted by hand (Arena export format) to the candidate pool.</summary>
@@ -424,3 +481,52 @@ public sealed record CreatorVideoCard(
     string? Decklist,
     FormatDefinition? Format,
     DeckAnalysisResult? Analysis);
+
+/// <summary>SPIKE: what we learned about one video's deck, independent of the collection.</summary>
+public sealed record CachedCreatorVideo(CreatorVideo Video, VideoDeckSource Source, string? Decklist);
+
+/// <summary>
+/// SPIKE: a JSON file beside the database. Deliberately not a table: it is disposable,
+/// and deleting it only costs one slower load.
+/// </summary>
+public sealed record CreatorVideoCache(DateTimeOffset FetchedAt, IReadOnlyList<CachedCreatorVideo> Videos)
+{
+    public static readonly TimeSpan MaxAge = TimeSpan.FromHours(6);
+
+    private static readonly string FilePath = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "MtgaCollectionAdvisor", "creator-videos.json");
+
+    private static readonly System.Text.Json.JsonSerializerOptions Json = new()
+    {
+        Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter() }
+    };
+
+    public bool IsFresh => Videos.Count > 0 && DateTimeOffset.UtcNow - FetchedAt < MaxAge;
+
+    public CachedCreatorVideo? Find(string videoId) => Videos.FirstOrDefault(v => v.Video.VideoId == videoId);
+
+    public static async Task<CreatorVideoCache> LoadAsync()
+    {
+        try
+        {
+            await using var stream = File.OpenRead(FilePath);
+            return await System.Text.Json.JsonSerializer.DeserializeAsync<CreatorVideoCache>(stream, Json)
+                   ?? Empty;
+        }
+        catch
+        {
+            // Missing or unreadable: the only cost is fetching everything again.
+            return Empty;
+        }
+    }
+
+    public async Task SaveAsync()
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(FilePath)!);
+        await using var stream = File.Create(FilePath);
+        await System.Text.Json.JsonSerializer.SerializeAsync(stream, this, Json);
+    }
+
+    private static CreatorVideoCache Empty => new(DateTimeOffset.MinValue, []);
+}

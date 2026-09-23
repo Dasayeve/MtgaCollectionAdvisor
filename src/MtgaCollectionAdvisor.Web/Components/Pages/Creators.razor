@@ -38,7 +38,7 @@
                 <option value="@SortNewest">Newest first</option>
                 <option value="@SortCheapest">Cheapest to finish</option>
             </select>
-            <button disabled="@Session.IsBusy" @onclick="() => Session.LoadCreatorVideosAsync()">Refresh</button>
+            <button disabled="@Session.IsBusy" @onclick="() => Session.LoadCreatorVideosAsync(force: true)">Refresh</button>
         </div>
     </div>
 
@@ -141,17 +141,28 @@
 
     protected override void OnInitialized() => Session.Changed += OnSessionChanged;
 
-    // Not awaited, and not during prerender: analysing every video's deck takes a while,
-    // and the page should paint first and fill in as the session reports progress.
+    // Not awaited, and not during prerender: the page paints first and fills in as the
+    // session reports progress. If the session is busy (the startup collection scan),
+    // try again the moment it frees up rather than leaving the page empty.
     protected override void OnAfterRender(bool firstRender)
     {
-        if (firstRender && Session.CreatorVideos.Count == 0 && !Session.IsBusy)
-        {
-            _ = Session.LoadCreatorVideosAsync();
-        }
+        if (firstRender) TryAutoLoad();
     }
 
-    private void OnSessionChanged() => InvokeAsync(StateHasChanged);
+    private bool _autoLoadStarted;
+
+    private void TryAutoLoad()
+    {
+        if (_autoLoadStarted || Session.IsBusy || Session.CreatorVideos.Count > 0) return;
+        _autoLoadStarted = true;
+        _ = Session.LoadCreatorVideosAsync();
+    }
+
+    private void OnSessionChanged() => InvokeAsync(() =>
+    {
+        TryAutoLoad();
+        StateHasChanged();
+    });
 
     private List<CreatorVideoCard> Shown
     {
