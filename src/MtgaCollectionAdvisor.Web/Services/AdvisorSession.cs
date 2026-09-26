@@ -70,6 +70,9 @@ public sealed partial class AdvisorSession(AppConfig config, ILogger<AdvisorSess
             TimeSpan.Zero, TimeSpan.FromSeconds(20));
     }
 
+    /// <summary>The user's own decks per format key, so an empty User decks tab can say where the others are.</summary>
+    public IReadOnlyDictionary<string, int> UserDeckCounts { get; private set; } = new Dictionary<string, int>();
+
     public async Task SetFormatAsync(FormatDefinition format)
     {
         Format = format;
@@ -316,19 +319,12 @@ public sealed partial class AdvisorSession(AppConfig config, ILogger<AdvisorSess
 
             await services.CuratedDeckStore.AddDeckAsync(deck);
 
-            if (format.Key == Format.Key)
-            {
-                LastImportedSourceId = deck.SourceId;
-                report($"Deck \"{name}\" imported ({cards.Count} lines).");
-                await ReloadRankingAsync();
-            }
-            else
-            {
-                // Saying nothing here would look identical to the import failing: the
-                // list on screen is for the other format and does not move.
-                report($"Deck \"{name}\" imported into {format.DisplayName} " +
-                       $"({cards.Count} lines). Switch the format to see it.");
-            }
+            // A deck imported into another format goes where it lives: staying on this format's
+            // list would look exactly like the import having failed.
+            Format = format;
+            LastImportedSourceId = deck.SourceId;
+            report($"Deck \"{name}\" imported into {format.DisplayName} ({cards.Count} lines).");
+            await ReloadRankingAsync();
         });
 
     /// <summary>
@@ -381,6 +377,7 @@ public sealed partial class AdvisorSession(AppConfig config, ILogger<AdvisorSess
         Collection = await services.CollectionStore.LoadAsync();
         await RepriceCreatorVideosAsync();
         Pins = await services.PinnedDeckStore.LoadAsync();
+        UserDeckCounts = await services.CuratedDeckStore.CountUserDecksAsync();
         var stored = await services.CuratedDeckStore.LoadAsync(Format);
 
         if (stored.Count == 0)
@@ -439,6 +436,7 @@ public sealed partial class AdvisorSession(AppConfig config, ILogger<AdvisorSess
             var now = DateTimeOffset.UtcNow;
             int added = 0, updated = 0;
             string? lastInCurrentFormat = null;
+            CandidateDeck? lastImported = null;
 
             foreach (var arenaDeck in snapshot.Decks.Where(d => arenaDeckIds.Contains(d.Id) && !d.IsWizardsDeck))
             {
@@ -456,6 +454,15 @@ public sealed partial class AdvisorSession(AppConfig config, ILogger<AdvisorSess
                 }
 
                 if (deck.FormatKey == Format.Key) lastInCurrentFormat = deck.SourceId;
+                lastImported = deck;
+            }
+
+            // None in the format on screen: go to the imported decks' format, or "Find them under
+            // User decks" would point at a tab that doesn't have them.
+            if (lastInCurrentFormat is null && lastImported is not null)
+            {
+                Format = Formats.All.First(f => f.Key == lastImported.FormatKey);
+                lastInCurrentFormat = lastImported.SourceId;
             }
 
             LastImportedSourceId = lastInCurrentFormat;

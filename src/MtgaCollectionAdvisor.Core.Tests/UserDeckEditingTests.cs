@@ -174,6 +174,19 @@ public sealed class UserDeckEditingTests : IAsyncLifetime
         Assert.Equal(17, pins[DeckId].WildcardsWhenPinned);
     }
 
+    [Fact]
+    public async Task CountUserDecks_Should_CountOnlyTheUsersDecks_PerFormat()
+    {
+        // An empty User decks tab names the formats the user's other decks are in (#76).
+        await _decks.AddDeckAsync(Deck("manual:p1", "P1", Formats.Pioneer, [Card("Island", 60)]));
+        await _decks.AddDeckAsync(Deck("manual:p2", "P2", Formats.Pioneer, [Card("Island", 60)]));
+        await _decks.AddDeckAsync(Deck("archidekt:1", "Fetched", Formats.Pioneer, [Card("Island", 60)]));
+
+        var counts = await _decks.CountUserDecksAsync();
+
+        Assert.Equal(new Dictionary<string, int> { ["standard"] = 1, ["pioneer"] = 2 }, counts);
+    }
+
     private static DeckCardRef Card(string name, int quantity) => new(name, quantity, DeckBoard.Main);
 
     private static CandidateDeck Deck(

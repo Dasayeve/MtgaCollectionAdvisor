@@ -316,6 +316,21 @@ public sealed class CuratedDeckStore(Database database)
         await command.ExecuteNonQueryAsync(ct);
     }
 
+    /// <summary>How many decks of their own the user has in each format, by format key.</summary>
+    public async Task<IReadOnlyDictionary<string, int>> CountUserDecksAsync(CancellationToken ct = default)
+    {
+        await using var connection = await database.OpenAsync(ct);
+        await using var command = connection.CreateCommand();
+        command.CommandText = "SELECT format_key, count(*) FROM decks WHERE source_id >= $from AND source_id < $to GROUP BY format_key";
+        command.Parameters.AddWithValue("$from", CandidateDeck.ManualSourcePrefix);
+        command.Parameters.AddWithValue("$to", CandidateDeck.ManualSourcePrefix + "\U0010FFFF");
+
+        var counts = new Dictionary<string, int>(StringComparer.Ordinal);
+        await using var reader = await command.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct)) counts[reader.GetString(0)] = reader.GetInt32(1);
+        return counts;
+    }
+
     public async Task<IReadOnlyList<CandidateDeck>> LoadAsync(FormatDefinition format, CancellationToken ct = default)
     {
         await using var connection = await database.OpenAsync(ct);

@@ -12,13 +12,60 @@ namespace MtgaCollectionAdvisor.Core.Tests;
 public sealed class BrawlTests
 {
     [Fact]
-    public void Brawl_Should_BeA100CardFormat()
+    public void Brawl_Should_BeA100CardFormatWithACommander()
     {
         Assert.Contains(Formats.Brawl, Formats.All);
         Assert.Equal("brawl", Formats.Brawl.ScryfallLegalityKey);
-        Assert.Equal(100, Formats.Brawl.MinimumDeckSize);
-        Assert.All([Formats.Standard, Formats.Pioneer], f => Assert.Equal(60, f.MinimumDeckSize));
+        Assert.Equal((100, true), (Formats.Brawl.MinimumDeckSize, Formats.Brawl.HasCommander));
+        Assert.All([Formats.Standard, Formats.Pioneer], f => Assert.Equal((60, false), (f.MinimumDeckSize, f.HasCommander)));
     }
+
+    [Fact]
+    public void FitsShapeOf_Should_NeedACommanderAnd100Cards_ForBrawlOnly()
+    {
+        var brawl = Deck(("Tinybones, Bauble Burglar", 1, DeckBoard.Commander), ("Swamp", 99, DeckBoard.Main));
+        var sixty = Deck(("Swamp", 56, DeckBoard.Main), ("Lurrus of the Dream-Den", 1, DeckBoard.Sideboard), ("Duress", 4, DeckBoard.Main));
+        var shortBrawl = Deck(("Tinybones, Bauble Burglar", 1, DeckBoard.Commander), ("Swamp", 59, DeckBoard.Main));
+
+        Assert.True(Formats.Brawl.FitsShapeOf(brawl));
+        Assert.False(Formats.Standard.FitsShapeOf(brawl));
+        Assert.False(Formats.Brawl.FitsShapeOf(sixty));
+        Assert.True(Formats.Pioneer.FitsShapeOf(sixty));
+        Assert.False(Formats.Brawl.FitsShapeOf(shortBrawl));
+    }
+
+    [Fact]
+    public void PickBest_Should_NotCallA60CardDeckBrawl_EvenWhenOnlyBrawlHasItAllLegal()
+    {
+        // A creator's Historic list: all legal in Brawl's pool, not in Standard or Pioneer.
+        var sixty = Deck(("Psychic Frog", 4, DeckBoard.Main), ("Swamp", 56, DeckBoard.Main));
+        var (format, _) = Creators.CreatorVideoPricing.PickBest(
+        [
+            (Formats.Standard, Analysis(sixty, illegal: 8)),
+            (Formats.Pioneer, Analysis(sixty, illegal: 6)),
+            (Formats.Brawl, Analysis(sixty, illegal: 0)),
+        ]);
+
+        Assert.Equal(Formats.Pioneer.Key, format.Key);
+    }
+
+    [Fact]
+    public void PickBest_Should_CallACommanderDeckBrawl()
+    {
+        var brawl = Deck(("Tinybones, Bauble Burglar", 1, DeckBoard.Commander), ("Swamp", 99, DeckBoard.Main));
+        var (format, _) = Creators.CreatorVideoPricing.PickBest(
+        [
+            (Formats.Standard, Analysis(brawl, illegal: 0)),
+            (Formats.Pioneer, Analysis(brawl, illegal: 0)),
+            (Formats.Brawl, Analysis(brawl, illegal: 1)),
+        ]);
+
+        Assert.Equal(Formats.Brawl.Key, format.Key);
+    }
+
+    private static DeckAnalysisResult Analysis(CandidateDeck deck, int illegal) =>
+        new(deck, WildcardNeed.Zero, 0, deck.Cards.Sum(c => c.Quantity), [], [],
+            [.. Enumerable.Range(0, illegal).Select(i => $"Illegal {i}")], "B");
 
     [Fact]
     public void IsLegalIn_Should_ReadEachFormatsOwnColumn()

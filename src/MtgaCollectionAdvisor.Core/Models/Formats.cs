@@ -10,7 +10,18 @@ public sealed record FormatDefinition(
     string DisplayName,
     string ScryfallLegalityKey,
     string MoxfieldFormatCode,
-    int MinimumDeckSize = 60);
+    int MinimumDeckSize = 60,
+    bool HasCommander = false)
+{
+    /// <summary>
+    /// Whether a list has this format's shape: a commander exactly when the format has one, and
+    /// at least its size, commander included. Legality says nothing about shape: a 60-card
+    /// Historic deck is all legal in Brawl, whose pool is Historic's (#76).
+    /// </summary>
+    public bool FitsShapeOf(CandidateDeck deck) =>
+        deck.Cards.Any(c => c.Board == DeckBoard.Commander) == HasCommander
+        && deck.Cards.Where(c => c.Board != DeckBoard.Sideboard).Sum(c => c.Quantity) >= MinimumDeckSize;
+}
 
 public static class Formats
 {
@@ -36,7 +47,8 @@ public static class Formats
         DisplayName: "Brawl",
         ScryfallLegalityKey: "brawl",
         MoxfieldFormatCode: "historicbrawl",
-        MinimumDeckSize: 100);
+        MinimumDeckSize: 100,
+        HasCommander: true);
 
     public static readonly IReadOnlyList<FormatDefinition> All = [Standard, Pioneer, Brawl];
 }

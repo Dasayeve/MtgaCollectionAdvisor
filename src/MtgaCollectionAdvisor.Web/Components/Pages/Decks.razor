@@ -183,12 +183,34 @@
 
             @if (_tab == DeckTab.User && Available.Count == 0)
             {
+                var elsewhere = Formats.All
+                    .Where(f => f.Key != Session.Format.Key && Session.UserDeckCounts.GetValueOrDefault(f.Key) > 0)
+                    .ToList();
                 <div class="empty">
-                    <h3>No decks of your own yet</h3>
-                    <p>
-                        Click <strong>Import deck</strong> to paste a list in Arena's export format.
-                        Your decks stay here whatever happens to the fetched pool.
-                    </p>
+                    @if (elsewhere.Count > 0)
+                    {
+                        @* The list follows the format switch: with decks in another format, an empty
+                           tab reads as the decks being gone (#76). *@
+                        <h3>No @Session.Format.DisplayName decks of your own</h3>
+                        <p>
+                            Your other decks are in
+                            @for (var i = 0; i < elsewhere.Count; i++)
+                            {
+                                var format = elsewhere[i];
+                                var count = Session.UserDeckCounts[format.Key];
+                                @(i == 0 ? "" : i == elsewhere.Count - 1 ? " and " : ", ")
+                                <button class="link-button" disabled="@Session.IsBusy" @onclick="() => ChangeFormatAsync(format)">@format.DisplayName (@count)</button>
+                            }.
+                        </p>
+                    }
+                    else
+                    {
+                        <h3>No decks of your own yet</h3>
+                        <p>
+                            Click <strong>Import deck</strong> to paste a list in Arena's export format.
+                            Your decks stay here whatever happens to the fetched pool.
+                        </p>
+                    }
                 </div>
             }
             else if (Session.Decks.Count == 0)
@@ -383,7 +405,14 @@
     /// <summary>Only meaningful in the narrow layout, where the filters live in a drawer.</summary>
     private bool _showFilters;
 
-    protected override void OnInitialized() => Session.Changed += OnSessionChanged;
+    protected override void OnInitialized()
+    {
+        Session.Changed += OnSessionChanged;
+
+        // A deck imported from another page (the Creators tab's dialog) lands here on its tab,
+        // the same as one imported on this page.
+        if (Session.ConsumeLastImport() is not null) _tab = DeckTab.User;
+    }
 
     private void OnSessionChanged() => InvokeAsync(() =>
     {
