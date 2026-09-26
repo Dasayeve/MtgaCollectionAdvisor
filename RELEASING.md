@@ -58,8 +58,8 @@ download.
 
 - **The workflow failed before "Upload release":** nothing was published. Fix the cause on
   `master`, then tag the **next** patch version. The failed tag can be deleted
-  (`git push origin :v0.2.0`, then `git tag -d v0.2.0`); the tag ruleset allows that only
-  while it is not enforced.
+  (`git push origin :v0.2.0`, then `git tag -d v0.2.0`). The "Protect release tags" ruleset
+  refuses that to everyone but an admin, who bypasses it.
 - **The release is published but broken:** do not delete it, because installed copies may
   already have updated to it. Fix on `master` and release the next patch, which they will
   update to.
