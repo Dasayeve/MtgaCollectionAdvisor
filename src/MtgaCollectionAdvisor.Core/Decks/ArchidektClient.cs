@@ -19,9 +19,10 @@ public sealed class ArchidektClient(HttpClient httpClient)
     {
         [Formats.Standard.Key] = 1,
         [Formats.Pioneer.Key] = 15,
-        // Archidekt's "Historic Brawl" (100 cards); its "Brawl" (13) is Standard Brawl. Checked
+        // Archidekt's "Historic Brawl" (100 cards) and "Brawl" (Standard Brawl, 60). Checked
         // 2026-09-25 (#75). The site has swapped these before; legality comes from Scryfall.
         [Formats.Brawl.Key] = 20,
+        [Formats.StandardBrawl.Key] = 13,
     };
 
     public const string SourcePrefix = "archidekt:";

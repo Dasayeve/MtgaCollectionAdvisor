@@ -17,6 +17,8 @@ public sealed class BrawlTests
         Assert.Contains(Formats.Brawl, Formats.All);
         Assert.Equal("brawl", Formats.Brawl.ScryfallLegalityKey);
         Assert.Equal((100, true), (Formats.Brawl.MinimumDeckSize, Formats.Brawl.HasCommander));
+        Assert.Equal((60, true, 60), (Formats.StandardBrawl.MinimumDeckSize, Formats.StandardBrawl.HasCommander, Formats.StandardBrawl.MaximumDeckSize));
+        Assert.Equal([Formats.StandardBrawl], Formats.More);
         Assert.All([Formats.Standard, Formats.Pioneer], f => Assert.Equal((60, false), (f.MinimumDeckSize, f.HasCommander)));
     }
 
@@ -32,6 +34,21 @@ public sealed class BrawlTests
         Assert.False(Formats.Brawl.FitsShapeOf(sixty));
         Assert.True(Formats.Pioneer.FitsShapeOf(sixty));
         Assert.False(Formats.Brawl.FitsShapeOf(shortBrawl));
+        Assert.True(Formats.StandardBrawl.FitsShapeOf(shortBrawl));
+        Assert.False(Formats.StandardBrawl.FitsShapeOf(brawl));   // 100 cards is not Standard Brawl
+    }
+
+    [Fact]
+    public void PickBest_Should_TellTheTwoBrawlsApartBySize()
+    {
+        var sixty = Deck(("Tinybones, Bauble Burglar", 1, DeckBoard.Commander), ("Swamp", 59, DeckBoard.Main));
+        var (format, _) = Creators.CreatorVideoPricing.PickBest(
+        [
+            (Formats.Brawl, Analysis(sixty, illegal: 0)),
+            (Formats.StandardBrawl, Analysis(sixty, illegal: 2)),
+        ]);
+
+        Assert.Equal(Formats.StandardBrawl.Key, format.Key);
     }
 
     [Fact]
@@ -72,11 +89,13 @@ public sealed class BrawlTests
     {
         // Legal in Brawl only: before #76 every format that wasn't Standard read Pioneer's column.
         var card = new CardInfo(1, "Ajani, Nacatl Pariah", "MH3", "{1}{W}", "W", CardRarity.Mythic,
-            StandardLegal: false, PioneerLegal: false, BrawlLegal: true);
+            StandardLegal: false, PioneerLegal: false, BrawlLegal: true, StandardBrawlLegal: false);
 
         Assert.False(card.IsLegalIn(Formats.Standard));
         Assert.False(card.IsLegalIn(Formats.Pioneer));
         Assert.True(card.IsLegalIn(Formats.Brawl));
+        Assert.False(card.IsLegalIn(Formats.StandardBrawl));
+        Assert.True((card with { StandardBrawlLegal = true }).IsLegalIn(Formats.StandardBrawl));
     }
 
     [Fact]
@@ -89,7 +108,7 @@ public sealed class BrawlTests
 
     [Theory]
     [InlineData("HistoricBrawl", "brawl")]
-    [InlineData("Brawl", null)]   // Arena's "Brawl" is Standard Brawl (60 cards), not ranked
+    [InlineData("Brawl", "standardbrawl")]   // Arena's "Brawl" is Standard Brawl (60 cards)
     public void FormatFor_Should_MapArenasBrawlNames(string arenaFormat, string? expectedKey)
     {
         Assert.Equal(expectedKey, ArenaDeckImport.FormatFor(arenaFormat)?.Key);

@@ -27,6 +27,8 @@
                     @foreach (var (key, label) in ArenaFilters())
                     {
                         var count = ArenaDeckImport.Filter(_arenaChoices, key).Count;
+                        // A format the player has no decks in is left out, so the row holds as formats grow.
+                        if (count == 0 && key is not null && key != ArenaDeckImport.OtherFormats && _arenaFilter != key) continue;
                         <button class="@(_arenaFilter == key ? "active" : "")" disabled="@(count == 0)"
                                 @onclick="() => _arenaFilter = key">
                             @label <span class="count">@count</span>

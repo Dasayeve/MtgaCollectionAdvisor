@@ -68,7 +68,7 @@
             </label>
             <label class="checkbox-row">
                 <input type="checkbox" checked="@_onlyAppFormats" @onchange="e => _onlyAppFormats = (bool)e.Value!" />
-                <span>@AppFormatNames only</span>
+                <span title="@AppFormatNames">App formats only</span>
             </label>
             <select value="@_sort" aria-label="Sort" @onchange="OnSortChanged">
                 <option value="@CreatorVideoSort.Newest">Newest first</option>
@@ -185,7 +185,7 @@
     private bool _onlyCraftable;
     private bool _onlyAppFormats;
 
-    /// <summary>"Standard, Pioneer & Brawl": the formats the app ranks, so the filter follows new ones.</summary>
+    /// <summary>"Standard, Pioneer, Brawl & Standard Brawl": the formats the app ranks, for the filter's tooltip.</summary>
     private static readonly string AppFormatNames = Formats.All.Count == 1
         ? Formats.All[0].DisplayName
         : $"{string.Join(", ", Formats.All.SkipLast(1).Select(f => f.DisplayName))} & {Formats.All[^1].DisplayName}";

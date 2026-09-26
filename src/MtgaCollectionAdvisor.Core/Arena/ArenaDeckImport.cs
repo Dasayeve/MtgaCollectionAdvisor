@@ -20,8 +20,8 @@ public static class ArenaDeckImport
     /// <summary>
     /// Arena's format names to the app's. Explorer is Arena's name for Pioneer - the two
     /// have been unified, so older decks may still carry either name. Arena's saved decks call
-    /// the 100-card Brawl "HistoricBrawl"; their "Brawl" is Standard Brawl, which the app does
-    /// not rank (#75). A new format is one line here.
+    /// the 100-card Brawl "HistoricBrawl" and Standard Brawl just "Brawl" (#75). A new format is
+    /// one line here.
     /// </summary>
     private static readonly Dictionary<string, FormatDefinition> FormatsByArenaName = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -31,6 +31,7 @@ public static class ArenaDeckImport
         ["TraditionalExplorer"] = Formats.Pioneer,
         ["Pioneer"] = Formats.Pioneer,
         ["HistoricBrawl"] = Formats.Brawl,
+        ["Brawl"] = Formats.StandardBrawl,
     };
 
     public static FormatDefinition? FormatFor(string arenaFormat) =>

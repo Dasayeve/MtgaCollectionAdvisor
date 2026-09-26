@@ -28,7 +28,8 @@ public sealed record CardInfo(
     string? ImageUrl = null,
     string? BackImageUrl = null,
     bool? IsNonBasicLand = null,
-    bool BrawlLegal = false)
+    bool BrawlLegal = false,
+    bool StandardBrawlLegal = false)
 {
     /// <summary>Legal in <paramref name="format"/>, by its key: a new format needs its own column, never another's.</summary>
     public bool IsLegalIn(FormatDefinition format) => format.Key switch
@@ -36,6 +37,7 @@ public sealed record CardInfo(
         "standard" => StandardLegal,
         "pioneer" => PioneerLegal,
         "brawl" => BrawlLegal,
+        "standardbrawl" => StandardBrawlLegal,
         _ => throw new ArgumentOutOfRangeException(nameof(format), format.Key, "No legality column for this format."),
     };
 }

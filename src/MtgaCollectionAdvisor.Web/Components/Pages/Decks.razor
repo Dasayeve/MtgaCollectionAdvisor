@@ -30,8 +30,10 @@
     <aside class="panel filters">
         <div class="filter-group">
             <div class="filter-title">Format</div>
+            @* The most played formats as buttons, the rest in a menu, so the switch stays one row
+               however many formats the app ranks (#76). *@
             <div class="segmented">
-                @foreach (var format in Formats.All)
+                @foreach (var format in Formats.Main)
                 {
                     <button class="@(Session.Format.Key == format.Key ? "active" : "")"
                             disabled="@Session.IsBusy"
@@ -40,6 +42,18 @@
                     </button>
                 }
             </div>
+            @if (Formats.More.Count > 0)
+            {
+                var inMore = Formats.More.Any(f => f.Key == Session.Format.Key);
+                <select class="format-more @(inMore ? "active" : "")" aria-label="More formats"
+                        disabled="@Session.IsBusy" @onchange="ChangeToMoreFormatAsync">
+                    <option value="" selected="@(!inMore)">More formats…</option>
+                    @foreach (var format in Formats.More)
+                    {
+                        <option value="@format.Key" selected="@(Session.Format.Key == format.Key)">@format.DisplayName</option>
+                    }
+                </select>
+            }
         </div>
 
         <div class="filter-group">
@@ -459,6 +473,11 @@
     {
         _selected = null;
         await Session.SetFormatAsync(format);
+    }
+
+    private async Task ChangeToMoreFormatAsync(ChangeEventArgs e)
+    {
+        if (Formats.All.FirstOrDefault(f => f.Key == e.Value?.ToString()) is { } format) await ChangeFormatAsync(format);
     }
 
     private void ToggleColor(char color)

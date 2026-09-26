@@ -307,6 +307,10 @@ input[type="text"], input[type="number"], select {
 
 .segmented button.active { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
 
+/* The formats that are not buttons (#76); marked like a button when one of them is chosen. */
+.format-more { width: 100%; margin-top: var(--space-2); font-size: 13px; }
+.format-more.active { border-color: var(--accent); color: var(--accent); font-weight: 600; background: var(--accent-soft); }
+
 .color-picker { display: flex; gap: 6px; flex-wrap: wrap; }
 
 .color-pip {

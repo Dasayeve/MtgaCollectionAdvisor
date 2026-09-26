@@ -31,8 +31,9 @@ Arena names Pioneer **Explorer** (the two are unified; decks may carry either na
 `Sideboard`, so read the sideboard only (`ArenaDeckImport`).
 
 **Arena's saved decks call the 100-card Brawl `HistoricBrawl`; their `Brawl` is Standard Brawl**
-(60 cards), which the app does not rank (#75, #76). Archidekt names them the same old way
-("Historic Brawl" is 20, "Brawl" is 13). The commander is its own board (`DeckBoard.Commander`):
+(60 cards) (#75, #76). Archidekt names them the same old way ("Historic Brawl" is 20, "Brawl" is
+13). Legality can't tell a creator's list apart (a 60-card Historic list is all legal in Brawl),
+so a list has to fit a format's shape first (`FormatDefinition.FitsShapeOf`). The commander is its own board (`DeckBoard.Commander`):
 Copy for Arena must write the `Commander` section, which is the only place Arena's importer
 reads a commander from.
 
