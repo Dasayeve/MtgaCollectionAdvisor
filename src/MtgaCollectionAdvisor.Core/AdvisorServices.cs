@@ -38,6 +38,8 @@ public sealed class AdvisorServices : IAsyncDisposable
     public HttpClient YouTubeHttpClient { get; }
     public CreatorVideoStore CreatorVideoStore { get; }
     public CreatorVideoService CreatorVideoService { get; }
+    public HttpClient CreatorRosterHttpClient { get; }
+    public CreatorRosterService CreatorRosterService { get; }
 
     private AdvisorServices(AppConfig config)
     {
@@ -66,6 +68,8 @@ public sealed class AdvisorServices : IAsyncDisposable
         CreatorVideoStore = new CreatorVideoStore(Database);
         CreatorVideoService = new CreatorVideoService(
             new YouTubeFeedClient(YouTubeHttpClient), ArchidektClient, CreatorVideoStore, DeckRankingService);
+        CreatorRosterHttpClient = CreatorRosterService.CreateHttpClient();
+        CreatorRosterService = new CreatorRosterService(CreatorRosterHttpClient, new CreatorRosterStore(Database));
     }
 
     public static async Task<AdvisorServices> CreateAsync(AppConfig config, CancellationToken ct = default)
@@ -81,6 +85,7 @@ public sealed class AdvisorServices : IAsyncDisposable
         ScryfallHttpClient.Dispose();
         ArchidektHttpClient.Dispose();
         YouTubeHttpClient.Dispose();
+        CreatorRosterHttpClient.Dispose();
         return ValueTask.CompletedTask;
     }
 }

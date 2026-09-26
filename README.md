@@ -45,7 +45,8 @@ where it stopped next time.
   saved in your MTG Arena account. They are ranked against your collection like any other.
 - **Copy a deck to MTG Arena.** Export any deck to the clipboard in Arena's import format.
 - **Watch creators' latest decks.** The Creators tab lists recent videos from MTG Arena
-  creators and prices the deck in each one against your collection.
+  creators and prices the deck in each one against your collection. The list of creators is
+  [`creators.json`](creators.json) and reaches the app without a new version.
 - **Take your data with you.** The Export menu saves your collection (a list or JSON with
   wildcards), your own decks, and the decks saved in Arena.
 

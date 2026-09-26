@@ -29,27 +29,32 @@ public sealed class CreatorVideoService(
     /// at a time, and keeps the rest from the cache; <paramref name="force"/> - the user's
     /// Refresh - asks every channel. A feed or Archidekt failure never throws: it leaves
     /// what the cache already knew and pushes that channel's next attempt back.
+    /// <paramref name="channels"/> is the curated list (<see cref="CreatorRoster"/>); videos of a
+    /// creator no longer on it are not returned.
     /// </summary>
-    public async Task<CreatorVideoRefreshResult> LoadAsync(bool force, CancellationToken ct = default)
+    public async Task<CreatorVideoRefreshResult> LoadAsync(
+        IReadOnlyList<CreatorChannel> channels, bool force, CancellationToken ct = default)
     {
         var cached = await store.LoadAsync(ct);
         var now = DateTimeOffset.UtcNow;
+        var curated = channels.Select(c => c.Name).ToHashSet(StringComparer.Ordinal);
 
-        var due = CreatorChannels.All
+        var due = channels
             .Where(c => force || CreatorFeedSchedule.IsDue(cached.FeedOf(c.Name), now))
             .Select(c => c.Name)
             .ToHashSet(StringComparer.Ordinal);
         if (due.Count == 0)
         {
-            return new CreatorVideoRefreshResult(cached.Videos, FromCache: true, FailedFeeds: 0, ArchidektFetches: 0);
+            var kept = cached.Videos.Where(v => curated.Contains(v.Creator)).ToList();
+            return new CreatorVideoRefreshResult(kept, FromCache: true, FailedFeeds: 0, ArchidektFetches: 0);
         }
 
-        var results = new List<ChannelFeedResult>(CreatorChannels.All.Count);
+        var results = new List<ChannelFeedResult>(channels.Count);
         var feedStates = new Dictionary<string, CreatorFeedState>(StringComparer.Ordinal);
         var asked = 0;
         var failedFeeds = 0;
 
-        foreach (var channel in CreatorChannels.All)
+        foreach (var channel in channels)
         {
             if (!due.Contains(channel.Name))
             {
@@ -77,7 +82,7 @@ public sealed class CreatorVideoService(
                 cached.FeedOf(channel.Name), channel.Name, succeeded: videos is not null, DateTimeOffset.UtcNow);
         }
 
-        var merged = CreatorVideoMerge.Merge(cached.Videos, results, CreatorChannels.All).ToList();
+        var merged = CreatorVideoMerge.Merge(cached.Videos, results, channels).ToList();
 
         var archidektFetches = 0;
         for (var i = 0; i < merged.Count; i++)

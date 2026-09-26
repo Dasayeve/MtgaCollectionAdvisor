@@ -215,6 +215,13 @@ too often** — during #32, bulk probing got every feed refused for hours, for t
 Treat a failed feed as "no news", never "no videos", and keep to `CreatorFeedSchedule`. Do
 not bulk-probe feeds while testing.
 
+**The creators list is `creators.json` at the repository root** (#64), read by every copy from
+GitHub's raw URL at most once a day, with the last good copy stored (`creator_roster`) and
+`CreatorChannels.All` as the fallback. Add or remove a creator by editing that file, no release
+needed; `CreatorRosterTests` fails CI when an entry would be dropped. The compiled list only
+catches up at a release. While the repository is private the raw URL returns 404 and every copy
+uses the compiled list. Only the maintainer curates it: no UI adds channels.
+
 **Card images come from Scryfall's image CDN, by URLs stored at import** (#59). The bulk
 file already carries `image_uris`; a double-faced card has none at the top level and one per
 face instead. `*.scryfall.io` has no rate limit, while `api.scryfall.com` does (10/s), so never

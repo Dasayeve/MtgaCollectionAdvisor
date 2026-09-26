@@ -137,6 +137,17 @@ public static class Migrations
         // Whether a card is a non-basic land, for pricing a deck without them (#61). NULL until
         // the automatic re-import fills it (CardDatabaseStore.NeedsCardDataBackfill).
         new(4, "Non-basic land flag", "ALTER TABLE cards ADD COLUMN is_nonbasic_land INTEGER;"),
+
+        // The last good creators.json read from the repository (#64), and when it was last asked
+        // for. A cache: one row, and losing it only means the compiled list until the next check.
+        new(5, "Creator roster", """
+            CREATE TABLE creator_roster (
+                id               INTEGER PRIMARY KEY CHECK (id = 1),
+                json             TEXT,
+                fetched_at       TEXT,
+                last_attempt_at  TEXT
+            );
+            """),
     ];
 
     public static int Latest => All[^1].Version;

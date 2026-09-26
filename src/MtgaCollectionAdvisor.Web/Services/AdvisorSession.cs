@@ -252,6 +252,9 @@ public sealed partial class AdvisorSession(AppConfig config, ILogger<AdvisorSess
 
     public IReadOnlyList<CreatorVideoCard> CreatorVideos { get; private set; } = [];
 
+    /// <summary>The curated channels (#64): creators.json from the repository, else the last copy, else the compiled list.</summary>
+    public IReadOnlyList<CreatorChannel> CreatorChannelList { get; private set; } = CreatorChannels.All;
+
     /// <summary>What the cache knows, kept so a collection change can re-price without the network.</summary>
     private IReadOnlyList<CreatorVideo> _creatorVideoSources = [];
 
@@ -269,7 +272,8 @@ public sealed partial class AdvisorSession(AppConfig config, ILogger<AdvisorSess
 
     private async Task LoadCreatorsAsync(bool force, Action<string> report)
     {
-        var loaded = await services.CreatorVideoService.LoadAsync(force);
+        CreatorChannelList = await services.CreatorRosterService.LoadAsync();
+        var loaded = await services.CreatorVideoService.LoadAsync(CreatorChannelList, force);
         _creatorVideoSources = loaded.Videos;
         CreatorVideos = await services.CreatorVideoService.PriceAsync(loaded.Videos, Collection);
 

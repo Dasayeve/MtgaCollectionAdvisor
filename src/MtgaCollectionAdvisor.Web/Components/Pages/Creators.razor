@@ -45,14 +45,14 @@
                 </button>
             </div>
             <span class="result-count">
-                @Shown.Count of @Session.CreatorVideos.Count videos from @CreatorChannels.All.Count creators
+                @Shown.Count of @Session.CreatorVideos.Count videos from @Session.CreatorChannelList.Count creators
             </span>
         </div>
 
         <div class="creators-filters">
             <select value="@_creator" aria-label="Creator" @onchange="e => _creator = e.Value?.ToString() ?? string.Empty">
                 <option value="">All creators</option>
-                @foreach (var channel in CreatorChannels.All.OrderBy(c => c.Name, StringComparer.OrdinalIgnoreCase))
+                @foreach (var channel in Session.CreatorChannelList.OrderBy(c => c.Name, StringComparer.OrdinalIgnoreCase))
                 {
                     <option value="@channel.Name">@channel.Name</option>
                 }
