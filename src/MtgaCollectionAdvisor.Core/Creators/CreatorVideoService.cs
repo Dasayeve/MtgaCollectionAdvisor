@@ -1,5 +1,6 @@
 using MtgaCollectionAdvisor.Core.Analysis;
 using MtgaCollectionAdvisor.Core.Decks;
+using MtgaCollectionAdvisor.Core.Hosting;
 using MtgaCollectionAdvisor.Core.Models;
 
 namespace MtgaCollectionAdvisor.Core.Creators;
@@ -7,8 +8,14 @@ namespace MtgaCollectionAdvisor.Core.Creators;
 public sealed record CreatorVideoRefreshResult(
     IReadOnlyList<CreatorVideo> Videos,
     bool FromCache,
-    int FailedFeeds,
-    int ArchidektFetches);
+    IReadOnlyList<FeedFailure> FeedFailures,
+    int ArchidektFetches)
+{
+    public int FailedFeeds => FeedFailures.Count;
+}
+
+/// <summary>A channel whose feed failed this time, why, and how many times in a row (#74).</summary>
+public sealed record FeedFailure(string Creator, string Reason, int ConsecutiveFailures);
 
 /// <summary>
 /// Brings creator videos in and prices their decks. The rules - what survives a refresh,
@@ -46,13 +53,13 @@ public sealed class CreatorVideoService(
         if (due.Count == 0)
         {
             var kept = cached.Videos.Where(v => curated.Contains(v.Creator)).ToList();
-            return new CreatorVideoRefreshResult(kept, FromCache: true, FailedFeeds: 0, ArchidektFetches: 0);
+            return new CreatorVideoRefreshResult(kept, FromCache: true, FeedFailures: [], ArchidektFetches: 0);
         }
 
         var results = new List<ChannelFeedResult>(channels.Count);
         var feedStates = new Dictionary<string, CreatorFeedState>(StringComparer.Ordinal);
         var asked = 0;
-        var failedFeeds = 0;
+        var failures = new List<FeedFailure>();
 
         foreach (var channel in channels)
         {
@@ -67,6 +74,7 @@ public sealed class CreatorVideoService(
             if (asked++ > 0) await Task.Delay(RequestSpacing, ct);
 
             IReadOnlyList<FeedVideo>? videos;
+            string? failure = null;
             try
             {
                 videos = await feeds.FetchAsync(channel, ct);
@@ -74,12 +82,14 @@ public sealed class CreatorVideoService(
             catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested)
             {
                 videos = null;
-                failedFeeds++;
+                failure = FailureText.Describe(ex);
             }
 
             results.Add(new ChannelFeedResult(channel, videos));
-            feedStates[channel.Name] = CreatorFeedSchedule.Record(
+            var state = CreatorFeedSchedule.Record(
                 cached.FeedOf(channel.Name), channel.Name, succeeded: videos is not null, DateTimeOffset.UtcNow);
+            feedStates[channel.Name] = state;
+            if (failure is not null) failures.Add(new FeedFailure(channel.Name, failure, state.ConsecutiveFailures));
         }
 
         var merged = CreatorVideoMerge.Merge(cached.Videos, results, channels).ToList();
@@ -104,7 +114,7 @@ public sealed class CreatorVideoService(
         return new CreatorVideoRefreshResult(
             merged,
             FromCache: false,
-            FailedFeeds: failedFeeds,
+            FeedFailures: failures,
             ArchidektFetches: archidektFetches);
     }
 

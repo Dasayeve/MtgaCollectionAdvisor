@@ -120,6 +120,11 @@ public sealed partial class AdvisorSession(AppConfig config, ILogger<AdvisorSess
     private async Task<DeckSyncReport> FetchDecksAsync(FormatDefinition format, Action<string> report)
     {
         var result = await services.ArchidektDeckSync.SyncAsync(format, new ImmediateProgress(report));
+        if (result.StoppedBecause is not null)
+        {
+            log.LogWarning("Archidekt fetch for {Format} stopped early: {Reason} ({Cause})",
+                format.DisplayName, result.StoppedBecause, result.StopCause ?? "unknown cause");
+        }
         await ReloadRankingAsync();
         report(result.Describe());
         return result;
@@ -274,8 +279,20 @@ public sealed partial class AdvisorSession(AppConfig config, ILogger<AdvisorSess
 
     private async Task LoadCreatorsAsync(bool force, Action<string> report)
     {
-        CreatorChannelList = await services.CreatorRosterService.LoadAsync();
+        var roster = await services.CreatorRosterService.LoadAsync();
+        CreatorChannelList = roster.Channels;
+        if (roster.ReadFailure is not null)
+        {
+            log.LogWarning("creators.json not read ({Reason}); using the {Count} creators already known",
+                roster.ReadFailure, roster.Channels.Count);
+        }
+
         var loaded = await services.CreatorVideoService.LoadAsync(CreatorChannelList, force);
+        foreach (var failure in loaded.FeedFailures)
+        {
+            log.LogWarning("Creator feed {Creator} unavailable: {Reason} ({Failures} in a row)",
+                failure.Creator, failure.Reason, failure.ConsecutiveFailures);
+        }
         _creatorVideoSources = loaded.Videos;
         CreatorVideos = await services.CreatorVideoService.PriceAsync(loaded.Videos, Collection);
 

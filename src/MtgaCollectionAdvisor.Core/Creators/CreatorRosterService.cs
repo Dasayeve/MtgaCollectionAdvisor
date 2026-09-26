@@ -1,7 +1,14 @@
 using System.Globalization;
+using MtgaCollectionAdvisor.Core.Hosting;
 using MtgaCollectionAdvisor.Core.Storage;
 
 namespace MtgaCollectionAdvisor.Core.Creators;
+
+/// <summary>
+/// The list to use, and why this call's read of creators.json gave nothing (#74): null when it
+/// worked or when no read was due.
+/// </summary>
+public sealed record RosterLoad(IReadOnlyList<CreatorChannel> Channels, string? ReadFailure);
 
 /// <summary>The last good creators.json and when it was last asked for (#64).</summary>
 public sealed record StoredRoster(string? Json, DateTimeOffset? FetchedAt, DateTimeOffset? LastAttemptAt);
@@ -61,26 +68,30 @@ public sealed class CreatorRosterService(HttpClient httpClient, CreatorRosterSto
         return client;
     }
 
-    public async Task<IReadOnlyList<CreatorChannel>> LoadAsync(CancellationToken ct = default)
+    public async Task<RosterLoad> LoadAsync(CancellationToken ct = default)
     {
         var stored = await store.LoadAsync(ct);
         var storedList = CreatorRoster.Parse(stored.Json);
 
         var now = DateTimeOffset.UtcNow;
-        if (!CreatorRoster.IsDue(stored.LastAttemptAt, now)) return CreatorRoster.Choose(null, storedList);
+        if (!CreatorRoster.IsDue(stored.LastAttemptAt, now)) return new RosterLoad(CreatorRoster.Choose(null, storedList), null);
 
         string? json = null;
+        string? failure = null;
         try
         {
             json = await httpClient.GetStringAsync(url, ct);
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException && !ct.IsCancellationRequested)
         {
-            // 404 while the repository is private, or GitHub unreachable: keep what we have.
+            // GitHub unreachable or the file gone: keep what we have.
+            failure = FailureText.Describe(ex);
         }
 
         var fetched = CreatorRoster.Parse(json);
+        if (fetched is null) failure ??= "no valid channel in the file";
+
         await store.RecordAttemptAsync(now, fetched is null ? null : json, ct);
-        return CreatorRoster.Choose(fetched, storedList);
+        return new RosterLoad(CreatorRoster.Choose(fetched, storedList), failure);
     }
 }

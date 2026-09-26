@@ -1,8 +1,12 @@
+using MtgaCollectionAdvisor.Core.Hosting;
 using MtgaCollectionAdvisor.Core.Models;
 
 namespace MtgaCollectionAdvisor.Core.Decks;
 
-/// <summary>What one deck fetch did. <see cref="CooldownRemaining"/> set means nothing was sent.</summary>
+/// <summary>
+/// What one deck fetch did. <see cref="CooldownRemaining"/> set means nothing was sent.
+/// <see cref="StopCause"/> is why a stopped fetch stopped (an HTTP status, a timeout), for the log.
+/// </summary>
 public sealed record DeckSyncReport(
     int Added,
     int Updated,
@@ -11,7 +15,8 @@ public sealed record DeckSyncReport(
     int DetailRequests,
     bool CutShort,
     string? StoppedBecause,
-    TimeSpan? CooldownRemaining)
+    TimeSpan? CooldownRemaining,
+    string? StopCause = null)
 {
     /// <summary>
     /// Why a fetch left the pool empty, for the first-run setup, where "no new decks since the
@@ -80,6 +85,7 @@ public sealed class ArchidektDeckSync(ArchidektClient client, CuratedDeckStore d
         var fullWalk = false;
         var capped = false;
         string? stoppedBecause = null;
+        string? stopCause = null;
 
         async Task PauseAsync()
         {
@@ -99,6 +105,7 @@ public sealed class ArchidektDeckSync(ArchidektClient client, CuratedDeckStore d
             catch (ArchidektUnavailableException ex)
             {
                 stoppedBecause = ex.Message;
+                stopCause = FailureText.Describe(ex);
                 break;
             }
 
@@ -135,6 +142,7 @@ public sealed class ArchidektDeckSync(ArchidektClient client, CuratedDeckStore d
                 catch (ArchidektUnavailableException ex)
                 {
                     stoppedBecause = ex.Message;
+                    stopCause = FailureText.Describe(ex);
                     break;
                 }
             }
@@ -168,7 +176,7 @@ public sealed class ArchidektDeckSync(ArchidektClient client, CuratedDeckStore d
             .Count(d => d.SourceId.StartsWith(ArchidektClient.SourcePrefix, StringComparison.Ordinal));
 
         return new DeckSyncReport(added, updated, removed, poolSize, detailRequests,
-            CutShort: capped, stoppedBecause, CooldownRemaining: null);
+            CutShort: capped, stoppedBecause, CooldownRemaining: null, stopCause);
     }
 
     /// <summary>

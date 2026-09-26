@@ -178,7 +178,9 @@ public sealed class CreatorRosterServiceTests : IAsyncLifetime
     {
         var (service, handler) = Service(HttpStatusCode.OK, Valid);
 
-        Assert.Equal(["Remote"], (await service.LoadAsync()).Select(c => c.Name));
+        var load = await service.LoadAsync();
+        Assert.Equal(["Remote"], load.Channels.Select(c => c.Name));
+        Assert.Null(load.ReadFailure);
         Assert.Equal(Valid, (await _store.LoadAsync()).Json);
         Assert.Equal(1, handler.Requests);
     }
@@ -188,7 +190,9 @@ public sealed class CreatorRosterServiceTests : IAsyncLifetime
     {
         var (service, _) = Service(HttpStatusCode.NotFound, "404: Not Found");
 
-        Assert.Same(CreatorChannels.All, await service.LoadAsync());
+        var load = await service.LoadAsync();
+        Assert.Same(CreatorChannels.All, load.Channels);
+        Assert.Equal("HTTP 404 NotFound", load.ReadFailure);
         Assert.NotNull((await _store.LoadAsync()).LastAttemptAt);
     }
 
@@ -198,7 +202,9 @@ public sealed class CreatorRosterServiceTests : IAsyncLifetime
         await _store.RecordAttemptAsync(DateTimeOffset.UtcNow.AddDays(-2), Valid);
         var (service, _) = Service(HttpStatusCode.OK, """{ "channels": [ { "name": "X", "channelId": "nope" } ] }""");
 
-        Assert.Equal(["Remote"], (await service.LoadAsync()).Select(c => c.Name));
+        var load = await service.LoadAsync();
+        Assert.Equal(["Remote"], load.Channels.Select(c => c.Name));
+        Assert.Equal("no valid channel in the file", load.ReadFailure);
         Assert.Equal(Valid, (await _store.LoadAsync()).Json);
     }
 
@@ -208,7 +214,9 @@ public sealed class CreatorRosterServiceTests : IAsyncLifetime
         await _store.RecordAttemptAsync(DateTimeOffset.UtcNow.AddHours(-1), Valid);
         var (service, handler) = Service(HttpStatusCode.OK, Valid);
 
-        Assert.Equal(["Remote"], (await service.LoadAsync()).Select(c => c.Name));
+        var load = await service.LoadAsync();
+        Assert.Equal(["Remote"], load.Channels.Select(c => c.Name));
+        Assert.Null(load.ReadFailure);   // nothing was asked, so nothing failed
         Assert.Equal(0, handler.Requests);
     }
 

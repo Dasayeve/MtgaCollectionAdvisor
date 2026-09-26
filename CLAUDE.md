@@ -189,6 +189,9 @@ and three startup lines (version, content root, database). A week is kept, and 5
 most. A test run with `MTGA_ADVISOR_DB_PATH` writes its own logs beside that file, never into
 the player's. Errors the app shows in the status bar or a setup step are logged with their
 exception; keep it that way when adding operations, and never log the collection or decks.
+Failures the app handles by itself (a creator feed, a stopped Archidekt fetch, creators.json)
+never reach `RunAsync`'s catch, so Core returns why and `AdvisorSession` logs it (#74);
+`FailureText` turns the exception into "HTTP 429 TooManyRequests", "timed out" and the like.
 
 Installing a release on the dev machine replaces the `MTGA Deck Advisor` desktop shortcut
 that `publish-local.ps1` makes; run `publish-local.ps1` again afterwards. Uninstalling removes
