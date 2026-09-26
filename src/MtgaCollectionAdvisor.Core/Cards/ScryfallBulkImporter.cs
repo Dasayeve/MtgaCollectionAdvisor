@@ -68,6 +68,7 @@ public sealed class ScryfallBulkImporter(HttpClient httpClient)
                 Rarity: MapRarity(card),
                 StandardLegal: card.IsLegal("standard"),
                 PioneerLegal: card.IsLegal("pioneer"),
+                BrawlLegal: card.IsLegal(Formats.Brawl.ScryfallLegalityKey),
                 ImageUrl: image,
                 BackImageUrl: backImage,
                 IsNonBasicLand: card.IsNonBasicLand());

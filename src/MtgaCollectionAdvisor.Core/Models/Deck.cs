@@ -3,7 +3,13 @@ namespace MtgaCollectionAdvisor.Core.Models;
 public enum DeckBoard
 {
     Main,
-    Sideboard
+    Sideboard,
+
+    /// <summary>
+    /// A Brawl deck's commander (#76). Part of the deck for cost and colours, but written in its
+    /// own section: Arena's importer takes the commander from the "Commander" section only.
+    /// </summary>
+    Commander
 }
 
 public sealed record DeckCardRef(string Name, int Quantity, DeckBoard Board);

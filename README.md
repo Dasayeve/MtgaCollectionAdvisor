@@ -4,7 +4,7 @@
 
 MTGA Deck Advisor reads your MTG Arena collection and ranks recent public decks by **how few
 wildcards you need to finish them**. You see what you can craft today, what each deck costs
-by rarity, and how close you are getting. Standard and Pioneer, Windows only.
+by rarity, and how close you are getting. Standard, Pioneer and Brawl, Windows only.
 
 ## Install
 
@@ -98,7 +98,9 @@ collection from a file or a pasted list is planned
 ## Limitations
 
 - Windows only.
-- Only Standard and Pioneer.
+- Only Standard, Pioneer and Brawl (the 100-card format). Standard Brawl is not ranked.
+- Many Brawl decks on Archidekt are built for paper and include cards that are not on Arena;
+  those are left out, so a Brawl fetch keeps far fewer decks than it reads.
 - Archidekt lets anyone file any list under any format, so decks that aren't actually legal
   get filtered out. Expect a chunk of each fetch to disappear.
 

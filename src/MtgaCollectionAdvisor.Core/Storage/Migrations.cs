@@ -148,6 +148,10 @@ public static class Migrations
                 last_attempt_at  TEXT
             );
             """),
+
+        // Whether a card is legal in Brawl (#76). NULL until the automatic re-import fills it
+        // (CardDatabaseStore.NeedsCardDataBackfill), like the columns of migrations 3 and 4.
+        new(6, "Brawl legality", "ALTER TABLE cards ADD COLUMN brawl_legal INTEGER;"),
     ];
 
     public static int Latest => All[^1].Version;

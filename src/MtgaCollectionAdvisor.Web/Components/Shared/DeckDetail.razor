@@ -63,6 +63,15 @@
 
     <div class="card-columns">
         <div>
+            @if (Shown.Gaps.Any(g => g.Board == DeckBoard.Commander))
+            {
+                @* A Brawl deck's commander (#76), apart from the 99 as Arena shows it. *@
+                <div class="card-list-title">Commander</div>
+                @foreach (var gap in Shown.Gaps.Where(g => g.Board == DeckBoard.Commander).OrderBy(g => g.CardName))
+                {
+                    @RenderCardRow(gap)
+                }
+            }
             <div class="card-list-title">Mainboard</div>
             @foreach (var gap in Shown.Gaps.Where(g => g.Board == DeckBoard.Main).OrderBy(g => g.CardName))
             {

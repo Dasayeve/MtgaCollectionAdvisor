@@ -14,6 +14,19 @@ public static class ArenaDeckListWriter
     public static string Write(CandidateDeck deck)
     {
         var sb = new StringBuilder();
+
+        // A Brawl deck (#76): Arena's importer takes the commander from this section only.
+        var commanders = deck.Cards.Where(c => c.Board == DeckBoard.Commander).ToList();
+        if (commanders.Count > 0)
+        {
+            sb.AppendLine("Commander");
+            foreach (var card in commanders)
+            {
+                sb.AppendLine($"{card.Quantity} {ArenaName(card.Name)}");
+            }
+            sb.AppendLine();
+        }
+
         sb.AppendLine("Deck");
         foreach (var card in deck.Cards.Where(c => c.Board == DeckBoard.Main))
         {

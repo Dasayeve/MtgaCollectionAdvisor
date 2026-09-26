@@ -68,7 +68,7 @@
             </label>
             <label class="checkbox-row">
                 <input type="checkbox" checked="@_onlyAppFormats" @onchange="e => _onlyAppFormats = (bool)e.Value!" />
-                <span>Standard &amp; Pioneer only</span>
+                <span>@AppFormatNames only</span>
             </label>
             <select value="@_sort" aria-label="Sort" @onchange="OnSortChanged">
                 <option value="@CreatorVideoSort.Newest">Newest first</option>
@@ -127,7 +127,7 @@
                                 else
                                 {
                                     <span class="format-chip off"
-                                          title="Not legal in Standard or Pioneer: @string.Join(", ", deck.IllegalInFormat.Take(5))">
+                                          title="Not legal in @string.Join(" or ", Formats.All.Select(f => f.DisplayName)): @string.Join(", ", deck.IllegalInFormat.Take(5))">
                                         Other format
                                     </span>
                                 }
@@ -184,6 +184,11 @@
     private bool _onlyWithDeck;
     private bool _onlyCraftable;
     private bool _onlyAppFormats;
+
+    /// <summary>"Standard, Pioneer & Brawl": the formats the app ranks, so the filter follows new ones.</summary>
+    private static readonly string AppFormatNames = Formats.All.Count == 1
+        ? Formats.All[0].DisplayName
+        : $"{string.Join(", ", Formats.All.SkipLast(1).Select(f => f.DisplayName))} & {Formats.All[^1].DisplayName}";
 
     // The app ships mainly in English; start from the user's own Windows language.
     private bool _includeNonEnglish =

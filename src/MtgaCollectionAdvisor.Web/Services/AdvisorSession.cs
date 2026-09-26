@@ -92,8 +92,7 @@ public sealed partial class AdvisorSession(AppConfig config, ILogger<AdvisorSess
     {
         if (Setup is not null) return;
 
-        var (cards, withImage, withLandFlag) = await services.CardDatabaseStore.CountCardDataAsync();
-        if (!CardDatabaseStore.NeedsCardDataBackfill(cards, withImage, withLandFlag)) return;
+        if (!CardDatabaseStore.NeedsCardDataBackfill(await services.CardDatabaseStore.CountCardDataAsync())) return;
 
         _ = Task.Run(() => RunAsync("Updating card data", ImportCardsAsync));
     }

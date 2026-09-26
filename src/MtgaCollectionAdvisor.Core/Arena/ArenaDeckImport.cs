@@ -19,8 +19,9 @@ public static class ArenaDeckImport
 {
     /// <summary>
     /// Arena's format names to the app's. Explorer is Arena's name for Pioneer - the two
-    /// have been unified, so older decks may still carry either name. A new format is one
-    /// line here.
+    /// have been unified, so older decks may still carry either name. Arena's saved decks call
+    /// the 100-card Brawl "HistoricBrawl"; their "Brawl" is Standard Brawl, which the app does
+    /// not rank (#75). A new format is one line here.
     /// </summary>
     private static readonly Dictionary<string, FormatDefinition> FormatsByArenaName = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -29,6 +30,7 @@ public static class ArenaDeckImport
         ["Explorer"] = Formats.Pioneer,
         ["TraditionalExplorer"] = Formats.Pioneer,
         ["Pioneer"] = Formats.Pioneer,
+        ["HistoricBrawl"] = Formats.Brawl,
     };
 
     public static FormatDefinition? FormatFor(string arenaFormat) =>
@@ -79,7 +81,8 @@ public static class ArenaDeckImport
     {
         if (FormatFor(deck.Format) is not { } format) return null;
 
-        var cards = deck.Main.Select(c => (c, DeckBoard.Main))
+        var cards = deck.Commander.Select(c => (c, DeckBoard.Commander))
+            .Concat(deck.Main.Select(c => (c, DeckBoard.Main)))
             .Concat(deck.Sideboard.Select(c => (c, DeckBoard.Sideboard)))
             .Where(x => names.ContainsKey(x.c.GrpId))
             .Select(x => new DeckCardRef(names[x.c.GrpId], x.c.Quantity, x.Item2))
@@ -96,8 +99,9 @@ public static class ArenaDeckImport
     }
 
     /// <summary>
-    /// Main deck and sideboard. Arena lists a companion in the sideboard as well as in its own
-    /// section, so the section is left out rather than counting it twice.
+    /// Commander, main deck and sideboard. Arena lists a companion in the sideboard as well as
+    /// in its own section, so the section is left out rather than counting it twice.
     /// </summary>
-    private static IEnumerable<ArenaCard> ImportedCards(ArenaDeck deck) => deck.Main.Concat(deck.Sideboard);
+    private static IEnumerable<ArenaCard> ImportedCards(ArenaDeck deck) =>
+        deck.Commander.Concat(deck.Main).Concat(deck.Sideboard);
 }

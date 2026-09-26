@@ -47,14 +47,14 @@ public sealed class WildcardCalculator(CardDatabaseStore cardStore)
             }
 
             var legalPrintings = printings
-                .Where(p => format.Key == Models.Formats.Standard.Key ? p.StandardLegal : p.PioneerLegal)
+                .Where(p => p.IsLegalIn(format))
                 .ToList();
             if (legalPrintings.Count == 0) illegal.Add(cardRef.Name);
             var candidates = legalPrintings.Count > 0 ? legalPrintings : printings;
             var cheapest = candidates.OrderBy(p => RarityRank(p.Rarity)).First();
             var ownedAcrossPrintings = candidates.Sum(p => collection.OwnedQuantity(p.GrpId));
 
-            if (cardRef.Board == DeckBoard.Main)
+            if (cardRef.Board != DeckBoard.Sideboard)
             {
                 foreach (var color in cheapest.Colors) colors.Add(color);
             }

@@ -33,10 +33,16 @@ public static partial class ArenaDeckListParser
             var line = rawLine.Trim().TrimEnd('\r');
             if (line.Length == 0) continue;
 
-            if (line.Equals("Deck", StringComparison.OrdinalIgnoreCase) ||
-                line.Equals("Commander", StringComparison.OrdinalIgnoreCase))
+            if (line.Equals("Deck", StringComparison.OrdinalIgnoreCase))
             {
                 board = DeckBoard.Main;
+                inCompanion = false;
+                continue;
+            }
+
+            if (line.Equals("Commander", StringComparison.OrdinalIgnoreCase))
+            {
+                board = DeckBoard.Commander;
                 inCompanion = false;
                 continue;
             }

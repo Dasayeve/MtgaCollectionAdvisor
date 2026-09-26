@@ -30,6 +30,17 @@ login, so it is stored (`arena_decks`) rather than re-read. Two traps when turni
 Arena names Pioneer **Explorer** (the two are unified; decks may carry either name), and it lists a companion in `Companions` *and* in
 `Sideboard`, so read the sideboard only (`ArenaDeckImport`).
 
+**Arena's saved decks call the 100-card Brawl `HistoricBrawl`; their `Brawl` is Standard Brawl**
+(60 cards), which the app does not rank (#75, #76). Archidekt names them the same old way
+("Historic Brawl" is 20, "Brawl" is 13). The commander is its own board (`DeckBoard.Commander`):
+Copy for Arena must write the `Commander` section, which is the only place Arena's importer
+reads a commander from.
+
+**Card legality is `CardInfo.IsLegalIn(format)`, one column per format.** Before Brawl the
+calculator picked Standard's column or else Pioneer's, so a new format silently read Pioneer's.
+A new format needs a migration for its column and the one-time re-import that fills it
+(`NeedsCardDataBackfill`).
+
 **Wildcard totals and saved decks are only in `Player.log` with MTG Arena's "Detailed Logs
 (Plugin Support)" on** (Options → Account). The log says which with a plain line near the top
 of each session, `DETAILED LOGS: ENABLED` or `DISABLED` (`DetailedLogsLine`). Wildcards never
@@ -179,9 +190,16 @@ the player's. Errors the app shows in the status bar or a setup step are logged 
 exception; keep it that way when adding operations, and never log the collection or decks.
 
 Installing a release on the dev machine replaces the `MTGA Deck Advisor` desktop shortcut
-that `publish-local.ps1` makes, and uninstalling it removes that shortcut; run
-`publish-local.ps1` again afterwards. To try the update loop locally, pack under another
-`packId`, and point `MTGA_ADVISOR_UPDATE_SOURCE` at the local `Releases` folder.
+that `publish-local.ps1` makes; run `publish-local.ps1` again afterwards. Uninstalling removes
+only shortcuts that point into the install folder, so a restored one survives it. To try the
+update loop locally, pack under another `packId`, and point `MTGA_ADVISOR_UPDATE_SOURCE` at the
+local `Releases` folder.
+
+**To test the real update loop, install the previous release next to a test database** (verified
+for v0.1.2 → v0.2.0): run its `Setup.exe --silent` with `MTGA_ADVISOR_DB_PATH` and
+`MTGA_ADVISOR_PORT` set, and start `%LOCALAPPDATA%\MtgaDeckAdvisor\current\*.exe` the same way.
+The app inherits both, across Velopack's restart too. Never point an older release at the real
+database: it refuses a newer schema. Uninstall with `Update.exe --uninstall --silent`.
 
 ## External data
 

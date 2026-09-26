@@ -24,7 +24,7 @@ public static class LigaMagicList
         string.Equals(regionCode?.Trim(), "BR", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
-    /// "quantity name" per line, mainboard then sideboard, one line per card. Basic lands are
+    /// "quantity name" per line, commander, mainboard then sideboard, one line per card. Basic lands are
     /// left out, since nobody buys them; the deck given is the one shown, so the non-basic lands
     /// #61 excludes are already gone. Names are the front face, as Arena exports them.
     /// </summary>
@@ -35,7 +35,7 @@ public static class LigaMagicList
 
         var lines = deck.Deck.Cards
             .Where(c => !basics.Contains(c.Name))
-            .OrderBy(c => c.Board == DeckBoard.Main ? 0 : 1)
+            .OrderBy(c => c.Board switch { DeckBoard.Commander => 0, DeckBoard.Main => 1, _ => 2 })
             .GroupBy(c => ArenaDeckListWriter.ArenaName(c.Name), StringComparer.Ordinal)
             .Select(g => $"{g.Sum(c => c.Quantity)} {g.Key}");
 

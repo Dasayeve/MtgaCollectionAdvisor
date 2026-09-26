@@ -19,6 +19,9 @@ public sealed class ArchidektClient(HttpClient httpClient)
     {
         [Formats.Standard.Key] = 1,
         [Formats.Pioneer.Key] = 15,
+        // Archidekt's "Historic Brawl" (100 cards); its "Brawl" (13) is Standard Brawl. Checked
+        // 2026-09-25 (#75). The site has swapped these before; legality comes from Scryfall.
+        [Formats.Brawl.Key] = 20,
     };
 
     public const string SourcePrefix = "archidekt:";
@@ -120,17 +123,20 @@ public sealed class ArchidektClient(HttpClient httpClient)
             if (categories.Any(c => c.Equals("Maybeboard", StringComparison.OrdinalIgnoreCase)))
                 continue;
 
-            var board = categories.Any(c => c.Equals("Sideboard", StringComparison.OrdinalIgnoreCase))
-                ? DeckBoard.Sideboard
-                : DeckBoard.Main;
+            // A creator video's link is read without knowing its format, so the category decides.
+            var board = categories.Any(c => c.Equals("Commander", StringComparison.OrdinalIgnoreCase))
+                ? DeckBoard.Commander
+                : categories.Any(c => c.Equals("Sideboard", StringComparison.OrdinalIgnoreCase))
+                    ? DeckBoard.Sideboard
+                    : DeckBoard.Main;
 
             cards.Add(new DeckCardRef(name, entry.Quantity, board));
         }
 
-        // Anyone can save a 5-card scratch deck as "Standard"; a real constructed
-        // deck has at least a legal 60-card mainboard.
-        const int minimumMainboardSize = 60;
-        if (cards.Where(c => c.Board == DeckBoard.Main).Sum(c => c.Quantity) < minimumMainboardSize)
+        // Anyone can save a 5-card scratch deck as "Standard"; a real deck has at least the
+        // format's size (60, or 100 for Brawl with its commander). A half-built one would rank
+        // as cheap.
+        if (cards.Where(c => c.Board != DeckBoard.Sideboard).Sum(c => c.Quantity) < format.MinimumDeckSize)
         {
             return null;
         }
