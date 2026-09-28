@@ -195,6 +195,22 @@ public class DeckFilterTests
     }
 
     [Fact]
+    public void ActiveCount_Should_CountEachControlOnce()
+    {
+        // Two colours are one filter, and so is a budget set on two rarities.
+        var criteria = new DeckFilterCriteria
+        {
+            Colors = new HashSet<char> { 'W', 'B' },
+            OnlyCraftable = true,
+            RarityBudget = new RarityBudget(null, null, 4, 0),
+            NameSearch = "lifegain",
+        };
+
+        Assert.Equal(4, criteria.ActiveCount);
+        Assert.Equal(0, new DeckFilterCriteria { Source = DeckSourceFilter.User, IncludeUnplayable = true }.ActiveCount);
+    }
+
+    [Fact]
     public void IsEmpty_Should_BeTrue_When_OnlyIncludeUnplayableIsSet()
     {
         // Which list is being shown is not a filter the user picked, so it must not

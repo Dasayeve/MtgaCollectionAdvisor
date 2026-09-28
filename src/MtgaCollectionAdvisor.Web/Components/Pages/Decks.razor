@@ -24,40 +24,12 @@
     return;
 }
 
-<div class="workspace @(_showFilters ? "filters-open" : "")">
-    <div class="filters-backdrop" @onclick="() => _showFilters = false"></div>
+<div class="workspace @(_filtersToggled ? "filters-toggled" : "")">
+    <div class="filters-backdrop" @onclick="() => _filtersToggled = false"></div>
 
-    <aside class="panel filters">
+    <aside class="filters">
         <div class="filter-group">
-            <div class="filter-title">Format</div>
-            @* The most played formats as buttons, the rest in a menu, so the switch stays one row
-               however many formats the app ranks (#76). *@
-            <div class="segmented">
-                @foreach (var format in Formats.Main)
-                {
-                    <button class="@(Session.Format.Key == format.Key ? "active" : "")"
-                            disabled="@Session.IsBusy"
-                            @onclick="() => ChangeFormatAsync(format)">
-                        @format.DisplayName
-                    </button>
-                }
-            </div>
-            @if (Formats.More.Count > 0)
-            {
-                var inMore = Formats.More.Any(f => f.Key == Session.Format.Key);
-                <select class="format-more @(inMore ? "active" : "")" aria-label="More formats"
-                        disabled="@Session.IsBusy" @onchange="ChangeToMoreFormatAsync">
-                    <option value="" selected="@(!inMore)">More formats…</option>
-                    @foreach (var format in Formats.More)
-                    {
-                        <option value="@format.Key" selected="@(Session.Format.Key == format.Key)">@format.DisplayName</option>
-                    }
-                </select>
-            }
-        </div>
-
-        <div class="filter-group">
-            <div class="filter-title">Colours</div>
+            <h2 class="filter-title">Colours</h2>
             <div class="color-picker">
                 @foreach (var color in "WUBRG")
                 {
@@ -68,7 +40,7 @@
                     </button>
                 }
             </div>
-            <label class="checkbox-row" style="margin-top: var(--space-3)">
+            <label class="checkbox-row">
                 <input type="checkbox" checked="@_exactColors" @onchange="e => _exactColors = (bool)e.Value!" />
                 <span>Exactly these colours</span>
             </label>
@@ -80,58 +52,59 @@
         </div>
 
         <div class="filter-group">
-            <div class="filter-title">Craftability</div>
+            <h2 class="filter-title">What I can build</h2>
             @* Unknown wildcards (#57) can't decide what is craftable: the option waits for them. *@
             <label class="checkbox-row" title="@Session.WildcardHint">
                 <input type="checkbox" checked="@_onlyCraftable" disabled="@(Session.Collection.Wildcards is null)"
                        @onchange="e => _onlyCraftable = (bool)e.Value!" />
-                <span>Only what I can craft now</span>
+                <span>Craftable with my wildcards</span>
             </label>
-            <div class="hint">Uses your current wildcards, respecting each rarity.</div>
-
-            <label class="checkbox-row" style="margin-top: var(--space-3)">
+            <label class="checkbox-row">
                 <input type="checkbox" checked="@_onlyPinned"
                        @onchange="e => { _onlyPinned = (bool)e.Value!; _page = 1; }" />
                 <span>Pinned only</span>
+                <svg class="pinned-mark" viewBox="0 0 16 16" width="13" height="13" aria-hidden="true">
+                    <path fill="currentColor" d="M5.75 1.5a1 1 0 0 0 0 2h.85v3.1L4.5 8.7A2.2 2.2 0 0 0 3.8
+                        10.3V11h3.45L7.72 14.62a.3.3 0 0 0 .56 0L8.75 11h3.45v-.7a2.2 2.2 0 0 0-.7-1.6L9.4
+                        6.6V3.5h.85a1 1 0 0 0 0-2Z" />
+                </svg>
             </label>
-
-            <div style="margin-top: var(--space-3)">
-                <div class="filter-title">Wildcard budget</div>
-                <input type="number" min="0" step="1" placeholder="no limit"
-                       value="@_maxWildcards"
-                       @onchange="e => { _maxWildcards = ParseCap(e); _page = 1; }" />
-            </div>
-
-            <div style="margin-top: var(--space-3)">
-                <div class="filter-title">Per-rarity budget</div>
-                <div class="rarity-budget">
-                    <label>
-                        <span class="wc-part common">Common</span>
-                        <input type="number" min="0" step="1" placeholder="any" value="@_maxCommons"
-                               @onchange="e => { _maxCommons = ParseCap(e); _page = 1; }" />
-                    </label>
-                    <label>
-                        <span class="wc-part uncommon">Uncommon</span>
-                        <input type="number" min="0" step="1" placeholder="any" value="@_maxUncommons"
-                               @onchange="e => { _maxUncommons = ParseCap(e); _page = 1; }" />
-                    </label>
-                    <label>
-                        <span class="wc-part rare">Rare</span>
-                        <input type="number" min="0" step="1" placeholder="any" value="@_maxRares"
-                               @onchange="e => { _maxRares = ParseCap(e); _page = 1; }" />
-                    </label>
-                    <label>
-                        <span class="wc-part mythic">Mythic</span>
-                        <input type="number" min="0" step="1" placeholder="any" value="@_maxMythics"
-                               @onchange="e => { _maxMythics = ParseCap(e); _page = 1; }" />
-                    </label>
-                </div>
-                <div class="hint">At most this many of each. Blank is no limit; 0 means none needed.</div>
-            </div>
         </div>
 
         <div class="filter-group">
-            <div class="filter-title">Owned</div>
+            <h2 class="filter-title">Wildcard budget</h2>
+            <input type="number" min="0" step="1" placeholder="No limit" aria-label="Wildcard budget"
+                   value="@_maxWildcards"
+                   @onchange="e => { _maxWildcards = ParseCap(e); _page = 1; }" />
+
+            <h3 class="filter-subtitle">Per rarity</h3>
+            <div class="rarity-budget">
+                <label>
+                    <span class="wc-part common">Common</span>
+                    <input type="number" min="0" step="1" placeholder="Any" value="@_maxCommons"
+                           @onchange="e => { _maxCommons = ParseCap(e); _page = 1; }" />
+                </label>
+                <label>
+                    <span class="wc-part uncommon">Uncommon</span>
+                    <input type="number" min="0" step="1" placeholder="Any" value="@_maxUncommons"
+                           @onchange="e => { _maxUncommons = ParseCap(e); _page = 1; }" />
+                </label>
+                <label>
+                    <span class="wc-part rare">Rare</span>
+                    <input type="number" min="0" step="1" placeholder="Any" value="@_maxRares"
+                           @onchange="e => { _maxRares = ParseCap(e); _page = 1; }" />
+                </label>
+                <label>
+                    <span class="wc-part mythic">Mythic</span>
+                    <input type="number" min="0" step="1" placeholder="Any" value="@_maxMythics"
+                           @onchange="e => { _maxMythics = ParseCap(e); _page = 1; }" />
+                </label>
+            </div>
+            <div class="hint">At most this many of each. Blank is no limit; 0 means none needed.</div>
+        </div>
+
+        <div class="filter-group">
+            <h2 class="filter-title">Already owned</h2>
             <div class="owned-threshold">
                 <input type="range" min="0" max="100" step="5" value="@_minOwnedPercent"
                        aria-label="Minimum share of the list already owned"
@@ -142,238 +115,278 @@
         </div>
 
         <div class="filter-group">
-            <div class="filter-title">Cards</div>
+            <h2 class="filter-title">Cards</h2>
             <CardPicker Label="Must include" Cards="_containsCards" CardsChanged="OnContainsChanged" />
             <CardPicker Label="Must exclude" Cards="_excludesCards" CardsChanged="OnExcludesChanged" />
         </div>
 
         <div class="filter-group">
-            <div class="filter-title">Search</div>
-            <input type="text" placeholder="Deck name"
+            <h2 class="filter-title">Deck name</h2>
+            <input type="text" placeholder="Search" aria-label="Deck name"
                    value="@_search"
                    @oninput="e => _search = e.Value?.ToString() ?? string.Empty" />
         </div>
     </aside>
 
-    <section>
-        <div class="panel">
-            <div class="list-header">
-                <div class="list-title">
-                    <button type="button" class="filters-toggle" aria-expanded="@_showFilters"
-                            title="Show the filters" @onclick="() => _showFilters = !_showFilters">
-                        <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
-                            <path fill="currentColor" d="M1.5 3.25a.75.75 0 0 1 .75-.75h11.5a.75.75 0 0 1 0
-                                1.5H2.25a.75.75 0 0 1-.75-.75Zm2 4.5a.75.75 0 0 1 .75-.75h7.5a.75.75 0 0 1 0
-                                1.5h-7.5a.75.75 0 0 1-.75-.75Zm2 4.5a.75.75 0 0 1 .75-.75h3.5a.75.75 0 0 1 0
-                                1.5h-3.5a.75.75 0 0 1-.75-.75Z" />
-                        </svg>
-                        Filters
+    <section class="deck-list">
+        <div class="page-head">
+            @* Collapses the filter column, or opens it as a drawer in a narrow window. The count
+               says filters still apply while the column is out of sight. *@
+            @{ var activeFilters = BuildCriteria().ActiveCount; }
+            <button type="button" class="filters-toggle @(activeFilters > 0 ? "has-active" : "")"
+                    title="Show or hide the filters" @onclick="() => _filtersToggled = !_filtersToggled">
+                <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
+                    <path fill="currentColor" d="M1.5 3.25a.75.75 0 0 1 .75-.75h11.5a.75.75 0 0 1 0
+                        1.5H2.25a.75.75 0 0 1-.75-.75Zm2 4.5a.75.75 0 0 1 .75-.75h7.5a.75.75 0 0 1 0
+                        1.5h-7.5a.75.75 0 0 1-.75-.75Zm2 4.5a.75.75 0 0 1 .75-.75h3.5a.75.75 0 0 1 0
+                        1.5h-3.5a.75.75 0 0 1-.75-.75Z" />
+                </svg>
+                Filters
+                @if (activeFilters > 0)
+                {
+                    <span class="filter-count">@activeFilters</span>
+                }
+            </button>
+            <h1>Decks</h1>
+
+            @* The format is what the whole page is about, so it sits in the title rather than among
+               the filters. The most played ones as buttons, one click each; the rest in a menu, so
+               the switch stays one row however many formats the app ranks (#76). *@
+            <div class="segmented" role="group" aria-label="Format">
+                @foreach (var format in Formats.Main)
+                {
+                    <button class="@(Session.Format.Key == format.Key ? "active" : "")"
+                            aria-pressed="@(Session.Format.Key == format.Key)"
+                            disabled="@Session.IsBusy"
+                            @onclick="() => ChangeFormatAsync(format)">
+                        @format.DisplayName
                     </button>
-                    <div class="tabs" role="tablist">
-                        <button role="tab" class="@(_tab == DeckTab.Suggestions ? "active" : "")"
-                                aria-selected="@(_tab == DeckTab.Suggestions)"
-                                @onclick="() => ShowTab(DeckTab.Suggestions)">
-                            Suggestions
-                        </button>
-                        <button role="tab" class="@(_tab == DeckTab.User ? "active" : "")"
-                                aria-selected="@(_tab == DeckTab.User)"
-                                @onclick="() => ShowTab(DeckTab.User)">
-                            User decks
-                            @if (UserDeckCount > 0)
-                            {
-                                <span class="tab-count">@UserDeckCount</span>
-                            }
-                        </button>
-                    </div>
-                </div>
-                <span class="result-count">
-                    @Filtered.Count of @Available.Count decks
-                    @if (HasActiveFilters)
-                    {
-                        <text>— </text><a href="#" @onclick:preventDefault @onclick="ClearFilters">clear filters</a>
-                    }
-                </span>
+                }
             </div>
-
-            @if (_tab == DeckTab.User && Available.Count == 0)
+            @if (Formats.More.Count > 0)
             {
-                var elsewhere = Formats.All
-                    .Where(f => f.Key != Session.Format.Key && Session.UserDeckCounts.GetValueOrDefault(f.Key) > 0)
-                    .ToList();
-                <div class="empty">
-                    @if (elsewhere.Count > 0)
+                var inMore = Formats.More.Any(f => f.Key == Session.Format.Key);
+                <select class="format-more @(inMore ? "active" : "")" aria-label="More formats"
+                        disabled="@Session.IsBusy" @onchange="ChangeToMoreFormatAsync">
+                    <option value="" selected="@(!inMore)">More formats</option>
+                    @foreach (var format in Formats.More)
                     {
-                        @* The list follows the format switch: with decks in another format, an empty
-                           tab reads as the decks being gone (#76). *@
-                        <h3>No @Session.Format.DisplayName decks of your own</h3>
-                        <p>
-                            Your other decks are in
-                            @for (var i = 0; i < elsewhere.Count; i++)
-                            {
-                                var format = elsewhere[i];
-                                var count = Session.UserDeckCounts[format.Key];
-                                @(i == 0 ? "" : i == elsewhere.Count - 1 ? " and " : ", ")
-                                <button class="link-button" disabled="@Session.IsBusy" @onclick="() => ChangeFormatAsync(format)">@format.DisplayName (@count)</button>
-                            }.
-                        </p>
+                        <option value="@format.Key" selected="@(Session.Format.Key == format.Key)">@format.DisplayName</option>
                     }
-                    else
-                    {
-                        <h3>No decks of your own yet</h3>
-                        <p>
-                            Click <strong>Import deck</strong> to paste a list in Arena's export format.
-                            Your decks stay here whatever happens to the fetched pool.
-                        </p>
-                    }
-                </div>
-            }
-            else if (Session.Decks.Count == 0)
-            {
-                <div class="empty">
-                    <h3>No decks loaded</h3>
-                    <p>Click <strong>Fetch decks</strong> to pull public @Session.Format.DisplayName lists.</p>
-                </div>
-            }
-            else if (Available.Count == 0)
-            {
-                @* Decks are stored, but none survive the legality and Arena checks, so
-                   telling the user to loosen their filters would send them nowhere. *@
-                <div class="empty">
-                    <h3>None of the fetched decks are playable</h3>
-                    <p>
-                        Every @Session.Format.DisplayName list pulled so far is either illegal in the
-                        format or uses cards missing from Arena. Try <strong>Fetch decks</strong> again,
-                        or <strong>Update cards</strong> if the card database is out of date.
-                    </p>
-                </div>
-            }
-            else if (Filtered.Count == 0)
-            {
-                <div class="empty">
-                    <h3>No decks match the filters</h3>
-                    <p>Loosen the colours or raise the wildcard budget.</p>
-                </div>
-            }
-            else
-            {
-                <table class="deck-table">
-                    <thead>
-                        <tr>
-                            <th class="pin-col"></th>
-                            <th class="sortable @SortClass(SortKey.Name)" @onclick="() => Sort(SortKey.Name)">Deck</th>
-                            <th>Colours</th>
-                            <th class="sortable num @SortClass(SortKey.Wildcards)" @onclick="() => Sort(SortKey.Wildcards)">Wildcards</th>
-                            <th class="sortable col-owned @SortClass(SortKey.Owned)" @onclick="() => Sort(SortKey.Owned)">Owned</th>
-                            <th>Craftable</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach (var deck in PageItems)
-                        {
-                            <tr class="@(ReferenceEquals(deck, _selected) ? "selected open" : "")" @onclick="() => Select(deck)">
-                                <td class="pin-col" @onclick:stopPropagation>
-                                    <button class="pin @(Session.IsPinned(deck.Deck.SourceId) ? "on" : "")"
-                                            title="@(Session.IsPinned(deck.Deck.SourceId) ? "Unpin" : "Pin to track progress")"
-                                            @onclick="() => Session.TogglePinAsync(deck)">
-                                        <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">
-                                            <path fill="currentColor" d="M5.75 1.5a1 1 0 0 0 0 2h.85v3.1L4.5 8.7A2.2 2.2 0 0 0 3.8
-                                                10.3V11h3.45L7.72 14.62a.3.3 0 0 0 .56 0L8.75 11h3.45v-.7a2.2 2.2 0 0 0-.7-1.6L9.4
-                                                6.6V3.5h.85a1 1 0 0 0 0-2Z" />
-                                        </svg>
-                                    </button>
-                                </td>
-                                <td>
-                                    <div class="deck-name">@deck.Deck.Name</div>
-                                    <div class="deck-meta">
-                                        @if (deck.Deck.IsUserDeck)
-                                        {
-                                            <text>Imported @deck.Deck.FetchedAt.LocalDateTime.ToString("d MMM yyyy")</text>
-                                        }
-                                        else
-                                        {
-                                            <text>@deck.Deck.Popularity.ToString("N0") views</text>
-                                        }
-                                        @if (Progress(deck) is { } moved && moved != 0)
-                                        {
-                                            <span class="progress @(moved > 0 ? "down" : "up")">
-                                                @(moved > 0 ? $"▼ {moved} since pinned" : $"▲ {-moved} since pinned")
-                                            </span>
-                                        }
-                                    </div>
-                                    @* Only reachable on the User decks tab - Suggestions drops these. *@
-                                    @if (deck.UnavailableOnArena.Count > 0)
-                                    {
-                                        <div class="deck-warning">Not on Arena: @string.Join(", ", deck.UnavailableOnArena)</div>
-                                    }
-                                    @if (deck.IllegalInFormat.Count > 0)
-                                    {
-                                        <div class="deck-warning">Not legal in @Session.Format.DisplayName: @string.Join(", ", deck.IllegalInFormat)</div>
-                                    }
-                                </td>
-                                <td><ManaColors Colors="@deck.Colors" /></td>
-                                <td class="num">
-                                    <WildcardCost Needed="deck.Needed" />
-                                </td>
-                                <td class="col-owned">
-                                    <div class="owned-cell">
-                                        <div class="owned-bar"><div style="width:@((deck.OwnedFraction * 100).ToString("F0"))%"></div></div>
-                                        <span class="owned-value">@deck.OwnedFraction.ToString("P0")</span>
-                                    </div>
-                                </td>
-                                <td>
-                                    @if (Session.Collection.Wildcards is not { } wallet)
-                                    {
-                                        <span class="badge unknown" title="@Session.WildcardHint">?</span>
-                                    }
-                                    else if (deck.Needed.IsAffordableWith(wallet))
-                                    {
-                                        <span class="badge yes">yes</span>
-                                    }
-                                    else
-                                    {
-                                        <span class="badge no">no</span>
-                                    }
-                                </td>
-                            </tr>
-
-                            @if (ReferenceEquals(deck, _selected))
-                            {
-                                @* A sibling row, deliberately without the row click handler:
-                                   clicking inside the drawer must not close it. *@
-                                <tr class="detail-row">
-                                    <td colspan="6">
-                                        <DeckDetail Deck="deck"
-                                                    Copied="_copied"
-                                                    OnCopy="CopyDeckAsync"
-                                                    QuoteStatus="@_quoteStatus"
-                                                    OnQuote="QuoteDeckAsync"
-                                                    OnEdit="() => _editing = deck"
-                                                    OnRemove="() => Session.DeleteDeckAsync(deck.Deck.SourceId)" />
-                                    </td>
-                                </tr>
-                            }
-                        }
-                    </tbody>
-                </table>
-
-                <div class="pagination">
-                    <div class="page-size">
-                        <span>Per page</span>
-                        <select value="@_pageSize" @onchange="ChangePageSize">
-                            <option value="10">10</option>
-                            <option value="25">25</option>
-                            <option value="50">50</option>
-                        </select>
-                    </div>
-                    <div class="page-controls">
-                        <button disabled="@(_page <= 1)" @onclick="() => GoToPage(_page - 1)">‹ Previous</button>
-                        <span class="page-info">Page @_page of @TotalPages</span>
-                        <button disabled="@(_page >= TotalPages)" @onclick="() => GoToPage(_page + 1)">Next ›</button>
-                    </div>
-                </div>
+                </select>
             }
         </div>
 
+        @* #57, said where it matters: without wildcards, nothing here can say what is craftable. *@
+        @if (Session.WildcardHint is { } hint)
+        {
+            <p class="notice"><strong>Wildcards not read yet.</strong> @hint</p>
+        }
+
+        <div class="list-header">
+            <div class="tabs" role="tablist">
+                <button role="tab" class="@(_tab == DeckTab.Suggestions ? "active" : "")"
+                        aria-selected="@(_tab == DeckTab.Suggestions)"
+                        @onclick="() => ShowTab(DeckTab.Suggestions)">
+                    Suggested
+                </button>
+                <button role="tab" class="@(_tab == DeckTab.User ? "active" : "")"
+                        aria-selected="@(_tab == DeckTab.User)"
+                        @onclick="() => ShowTab(DeckTab.User)">
+                    My decks
+                    @if (UserDeckCount > 0)
+                    {
+                        <span class="tab-count">@UserDeckCount</span>
+                    }
+                </button>
+            </div>
+            <span class="result-count">
+                @Filtered.Count of @Available.Count decks
+                @if (HasActiveFilters)
+                {
+                    <text> · </text><button type="button" class="link" @onclick="ClearFilters">Clear filters</button>
+                }
+            </span>
+        </div>
+
+        @if (_tab == DeckTab.User && Available.Count == 0)
+        {
+            var elsewhere = Formats.All
+                .Where(f => f.Key != Session.Format.Key && Session.UserDeckCounts.GetValueOrDefault(f.Key) > 0)
+                .ToList();
+            <div class="empty">
+                @if (elsewhere.Count > 0)
+                {
+                    @* The list follows the format switch: with decks in another format, an empty
+                       tab reads as the decks being gone (#76). *@
+                    <h3>No @Session.Format.DisplayName decks of your own</h3>
+                    <p>
+                        Your other decks are in
+                        @for (var i = 0; i < elsewhere.Count; i++)
+                        {
+                            var format = elsewhere[i];
+                            var count = Session.UserDeckCounts[format.Key];
+                            @(i == 0 ? "" : i == elsewhere.Count - 1 ? " and " : ", ")
+                            <button class="link-button" disabled="@Session.IsBusy" @onclick="() => ChangeFormatAsync(format)">@format.DisplayName (@count)</button>
+                        }.
+                    </p>
+                }
+                else
+                {
+                    <h3>No decks of your own yet</h3>
+                    <p>
+                        Click <strong>Import deck</strong> to paste a list in Arena's export format.
+                        Your decks stay here whatever happens to the fetched pool.
+                    </p>
+                }
+            </div>
+        }
+        else if (Session.Decks.Count == 0)
+        {
+            <div class="empty">
+                <h3>No decks loaded</h3>
+                <p>Click <strong>Fetch decks</strong> to pull public @Session.Format.DisplayName lists.</p>
+            </div>
+        }
+        else if (Available.Count == 0)
+        {
+            @* Decks are stored, but none survive the legality and Arena checks, so
+               telling the user to loosen their filters would send them nowhere. *@
+            <div class="empty">
+                <h3>None of the fetched decks are playable</h3>
+                <p>
+                    Every @Session.Format.DisplayName list pulled so far is either illegal in the
+                    format or uses cards missing from Arena. Try <strong>Fetch decks</strong> again,
+                    or <strong>Update cards</strong> if the card database is out of date.
+                </p>
+            </div>
+        }
+        else if (Filtered.Count == 0)
+        {
+            <div class="empty">
+                <h3>No decks match the filters</h3>
+                <p>Loosen the colours or raise the wildcard budget.</p>
+            </div>
+        }
+        else
+        {
+            <table class="deck-table">
+                <thead>
+                    <tr>
+                        <th class="pin-col"></th>
+                        <th class="sortable @SortClass(SortKey.Name)" @onclick="() => Sort(SortKey.Name)">Deck@(SortArrow(SortKey.Name))</th>
+                        <th>Colours</th>
+                        <th class="sortable @SortClass(SortKey.Wildcards)" @onclick="() => Sort(SortKey.Wildcards)">Wildcards needed@(SortArrow(SortKey.Wildcards))</th>
+                        <th class="sortable col-owned @SortClass(SortKey.Owned)" @onclick="() => Sort(SortKey.Owned)">Owned@(SortArrow(SortKey.Owned))</th>
+                        <th>Can I build it?</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var deck in PageItems)
+                    {
+                        <tr class="@(ReferenceEquals(deck, _selected) ? "selected open" : "")" @onclick="() => Select(deck)">
+                            <td class="pin-col" @onclick:stopPropagation>
+                                <button class="pin @(Session.IsPinned(deck.Deck.SourceId) ? "on" : "")"
+                                        title="@(Session.IsPinned(deck.Deck.SourceId) ? "Unpin" : "Pin to track progress")"
+                                        @onclick="() => Session.TogglePinAsync(deck)">
+                                    <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">
+                                        <path fill="currentColor" d="M5.75 1.5a1 1 0 0 0 0 2h.85v3.1L4.5 8.7A2.2 2.2 0 0 0 3.8
+                                            10.3V11h3.45L7.72 14.62a.3.3 0 0 0 .56 0L8.75 11h3.45v-.7a2.2 2.2 0 0 0-.7-1.6L9.4
+                                            6.6V3.5h.85a1 1 0 0 0 0-2Z" />
+                                    </svg>
+                                </button>
+                            </td>
+                            <td>
+                                <div class="deck-name">@deck.Deck.Name</div>
+                                <div class="deck-meta">
+                                    @if (deck.Deck.IsUserDeck)
+                                    {
+                                        <text>Imported @deck.Deck.FetchedAt.LocalDateTime.ToString("d MMM yyyy")</text>
+                                    }
+                                    else
+                                    {
+                                        <text>@deck.Deck.Popularity.ToString("N0") views</text>
+                                    }
+                                    @if (Progress(deck) is { } moved && moved != 0)
+                                    {
+                                        <span class="progress @(moved > 0 ? "down" : "up")">
+                                            @(moved > 0 ? $"▼ {moved} since pinned" : $"▲ {-moved} since pinned")
+                                        </span>
+                                    }
+                                </div>
+                                @* Only reachable on the My decks tab - Suggested drops these. *@
+                                @if (deck.UnavailableOnArena.Count > 0)
+                                {
+                                    <div class="deck-warning">Not on Arena: @string.Join(", ", deck.UnavailableOnArena)</div>
+                                }
+                                @if (deck.IllegalInFormat.Count > 0)
+                                {
+                                    <div class="deck-warning">Not legal in @Session.Format.DisplayName: @string.Join(", ", deck.IllegalInFormat)</div>
+                                }
+                            </td>
+                            <td><ManaColors Colors="@deck.Colors" /></td>
+                            <td>
+                                <WildcardCost Needed="deck.Needed" />
+                            </td>
+                            <td class="col-owned">
+                                <div class="owned-cell">
+                                    <div class="owned-bar"><div style="width:@((deck.OwnedFraction * 100).ToString("F0"))%"></div></div>
+                                    <span class="owned-value @(deck.OwnedFraction >= 1 ? "complete" : "")">@deck.OwnedFraction.ToString("P0")</span>
+                                </div>
+                            </td>
+                            <td>
+                                @* Says why not, so a "no" tells the player what it would take. *@
+                                @if (Session.Collection.Wildcards is not { } wallet)
+                                {
+                                    <span class="verdict unknown" title="@Session.WildcardHint">Wildcards unknown</span>
+                                }
+                                else if (deck.Needed.ShortfallAgainst(wallet).DescribeShortfall() is { } shortfall)
+                                {
+                                    <span class="verdict no">@shortfall</span>
+                                }
+                                else
+                                {
+                                    <span class="verdict yes">Yes</span>
+                                }
+                            </td>
+                        </tr>
+
+                        @if (ReferenceEquals(deck, _selected))
+                        {
+                            @* A sibling row, deliberately without the row click handler:
+                               clicking inside the drawer must not close it. *@
+                            <tr class="detail-row">
+                                <td colspan="6">
+                                    <DeckDetail Deck="deck"
+                                                Copied="_copied"
+                                                OnCopy="CopyDeckAsync"
+                                                QuoteStatus="@_quoteStatus"
+                                                OnQuote="QuoteDeckAsync"
+                                                OnEdit="() => _editing = deck"
+                                                OnRemove="() => Session.DeleteDeckAsync(deck.Deck.SourceId)" />
+                                </td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+
+            <div class="pagination">
+                <div class="page-size">
+                    <span>Per page</span>
+                    <select value="@_pageSize" @onchange="ChangePageSize">
+                        <option value="10">10</option>
+                        <option value="25">25</option>
+                        <option value="50">50</option>
+                    </select>
+                </div>
+                <div class="page-controls">
+                    <button disabled="@(_page <= 1)" @onclick="() => GoToPage(_page - 1)">‹ Previous</button>
+                    <span class="page-info">Page @_page of @TotalPages</span>
+                    <button disabled="@(_page >= TotalPages)" @onclick="() => GoToPage(_page + 1)">Next ›</button>
+                </div>
+            </div>
+        }
     </section>
 </div>
 
@@ -416,8 +429,12 @@
     /// <summary>The deck whose edit dialog is open, if any.</summary>
     private DeckAnalysisResult? _editing;
 
-    /// <summary>Only meaningful in the narrow layout, where the filters live in a drawer.</summary>
-    private bool _showFilters;
+    /// <summary>
+    /// The Filters button's state, read by width in CSS: in a wide window it collapses the
+    /// filter column, in a narrow one (where the column is a drawer, closed by default) it
+    /// opens the drawer. One flag, so the list never has to know how wide the window is.
+    /// </summary>
+    private bool _filtersToggled;
 
     protected override void OnInitialized()
     {
@@ -534,6 +551,9 @@
     }
 
     private string SortClass(SortKey key) => _sortBy == key ? "active" : "";
+
+    /// <summary>The sorted column says which way it runs; the others say nothing.</summary>
+    private string SortArrow(SortKey key) => _sortBy != key ? "" : _descending ? " ↓" : " ↑";
 
     private void ChangePageSize(ChangeEventArgs e)
     {
@@ -665,5 +685,13 @@
     }
 
 
-    public void Dispose() => Session.Changed -= OnSessionChanged;
+    // The top bar shows which wildcard totals fall short of the open deck. Set after every
+    // render, so every way the selection changes (a click, a page, a tab, a re-rank) is covered.
+    protected override void OnAfterRender(bool firstRender) => Session.SetOpenDeck(_selected?.Needed);
+
+    public void Dispose()
+    {
+        Session.Changed -= OnSessionChanged;
+        Session.SetOpenDeck(null); // leaving the page closes the deck
+    }
 }

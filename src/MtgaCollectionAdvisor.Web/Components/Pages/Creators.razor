@@ -17,9 +17,9 @@
 }
 
 <div class="creators-page">
-    <div class="panel creators-toolbar">
+    <div class="creators-toolbar">
         <div class="creators-heading">
-            <h2>Creator decks</h2>
+            <h1>Creator decks</h1>
 
             @* Discreet on purpose: English is the default audience. A flag stands for English
                only, the globe for every language (Brazilian Portuguese today, more later).
@@ -84,14 +84,14 @@
 
     @if (Session.CreatorVideos.Count == 0)
     {
-        <div class="panel empty">
+        <div class="empty">
             <h3>@(Session.IsBusy ? "Loading creator videos..." : "No creator videos loaded yet")</h3>
             <p>Videos come from each creator's public YouTube feed.</p>
         </div>
     }
     else if (Shown.Count == 0)
     {
-        <div class="panel empty">
+        <div class="empty">
             <h3>No videos match the filters</h3>
             <p>Try another creator, or untick a filter.</p>
         </div>
@@ -105,7 +105,6 @@
                 <article class="video-card">
                     <a class="video-thumb" href="@video.Url" target="_blank" rel="noopener" title="Watch on YouTube">
                         <img src="@video.ThumbnailUrl" alt="" loading="lazy" />
-                        <span class="play" aria-hidden="true">▶</span>
                     </a>
 
                     <div class="video-body">
@@ -133,7 +132,7 @@
                                 }
                                 @if (Session.Collection.Wildcards is { } wallet && deck.Needed.IsAffordableWith(wallet))
                                 {
-                                    <span class="badge yes">craftable</span>
+                                    <span class="badge yes">Craftable</span>
                                 }
                             </div>
                         }
@@ -148,7 +147,7 @@
 
                         @* Watch always comes first and sits in the same place on every card. *@
                         <div class="video-actions">
-                            <a href="@video.Url" target="_blank" rel="noopener"><button class="primary">▶ Watch</button></a>
+                            <a class="button" href="@video.Url" target="_blank" rel="noopener">Watch</a>
                             @if (card.Analysis is not null)
                             {
                                 <button @onclick="() => _importing = card">Add to my decks</button>
@@ -157,9 +156,9 @@
                             {
                                 @* Opens the creator's list and our import side by side: export it
                                    there, paste it here. The app never reads that site. *@
-                                <a href="@video.ExternalUrl" target="_blank" rel="noopener"
+                                <a class="button" href="@video.ExternalUrl" target="_blank" rel="noopener"
                                    @onclick="() => _importing = card">
-                                    <button>Import deck</button>
+                                    Import deck
                                 </a>
                             }
                         </div>

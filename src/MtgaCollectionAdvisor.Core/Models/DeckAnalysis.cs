@@ -53,6 +53,29 @@ public sealed record WildcardNeed(int Commons, int Uncommons, int Rares, int Myt
     public bool IsAffordableWith(WildcardInventory wallet) =>
         wallet.Commons >= Commons && wallet.Uncommons >= Uncommons &&
         wallet.Rares >= Rares && wallet.Mythics >= Mythics;
+
+    /// <summary>The wildcards still missing once the wallet is spent, per rarity; zero when affordable.</summary>
+    public WildcardNeed ShortfallAgainst(WildcardInventory wallet) => new(
+        Math.Max(0, Commons - wallet.Commons),
+        Math.Max(0, Uncommons - wallet.Uncommons),
+        Math.Max(0, Rares - wallet.Rares),
+        Math.Max(0, Mythics - wallet.Mythics));
+
+    /// <summary>
+    /// "4 rares short", "1 mythic, 2 rares short": why a deck can't be crafted yet, rarest first,
+    /// so a "no" in the deck list says what it would take. Null when nothing is missing.
+    /// </summary>
+    public string? DescribeShortfall()
+    {
+        var parts = new List<string>();
+        if (Mythics > 0) parts.Add(Plural(Mythics, "mythic"));
+        if (Rares > 0) parts.Add(Plural(Rares, "rare"));
+        if (Uncommons > 0) parts.Add(Plural(Uncommons, "uncommon"));
+        if (Commons > 0) parts.Add(Plural(Commons, "common"));
+        return parts.Count == 0 ? null : $"{string.Join(", ", parts)} short";
+
+        static string Plural(int count, string rarity) => $"{count} {rarity}{(count == 1 ? "" : "s")}";
+    }
 }
 
 public sealed record DeckAnalysisResult(

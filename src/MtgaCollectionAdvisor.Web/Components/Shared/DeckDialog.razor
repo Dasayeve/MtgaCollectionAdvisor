@@ -113,7 +113,7 @@
 
             <div class="field">
                 <label for="deck-list">Decklist</label>
-                <textarea id="deck-list" class="export-area" placeholder="Deck&#10;4 Card Name&#10;..."
+                <textarea id="deck-list" class="export-area" placeholder="@DecklistPlaceholder"
                           @oninput="OnDecklistChangedAsync">@_decklist</textarea>
             </div>
 
@@ -156,6 +156,9 @@
 </div>
 
 @code {
+    // Real line breaks: Blazor escapes an attribute's text, so "&#10;" in the markup showed as is.
+    private const string DecklistPlaceholder = "Deck\n4 Card Name\n...";
+
     [Parameter] public EventCallback OnClose { get; set; }
 
     /// <summary>The deck being edited; null opens the dialog for a new one.</summary>

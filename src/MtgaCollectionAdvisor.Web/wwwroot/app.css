@@ -1,30 +1,40 @@
+/* ---------- Tokens ----------
+   Colour carries information only: rarities, mana, owned or missing, good or bad. The
+   interface itself is a warm neutral, and emphasis comes from the text colour, weight and
+   size, never from an accent hue. Every text colour passes WCAG AA on its background.
+
+   Dark is the default; light applies when Windows is set to light, or when the player
+   picks it (data-theme on <html>, set by advisorTheme in App.razor). The light values are
+   written twice, for the two ways in, because a media query can't share a rule's body. */
 :root {
-    /* Surfaces: near-black base with layered panels, in the spirit of Arena's UI */
-    --bg: #0e1116;
-    --surface: #161b22;
-    --surface-raised: #1c232c;
-    --surface-hover: #222b36;
-    --border: #2a3441;
-    --border-strong: #3a4757;
+    --bg: #161514;
+    --surface: #1c1b19;
+    --surface-raised: #24221f;
+    --surface-hover: #2b2925;
+    --selected: #221f1c;
+    --border: #2f2c28;
+    --border-strong: #433f39;
 
-    --text: #e6edf3;
-    --text-muted: #9aa7b4;
-    --text-faint: #6b7886;
+    --text: #ece8e1;
+    --text-muted: #b3ab9f;
+    --text-faint: #958c7f;
+    --on-primary: #161514;
 
-    --accent: #e8a33d;
-    --accent-soft: rgba(232, 163, 61, 0.14);
-    --positive: #4ec27a;
-    --positive-soft: rgba(78, 194, 122, 0.14);
-    --negative: #e35d5d;
-    --warning: #e0b341;
+    --positive: #7fc893;
+    --negative: #e98474;
+    --warning: #e2b35a;
+    --pinned: #e8b84a;
 
     /* Wildcards use their in-game rarity colours */
-    --rarity-common: #b6bec8;
-    --rarity-uncommon: #7fb4d4;
-    --rarity-rare: #d4af37;
-    --rarity-mythic: #f0682a;
+    --rarity-common: #bcc3cc;
+    --rarity-uncommon: #8cbedb;
+    --rarity-rare: #dcb54f;
+    --rarity-mythic: #f07a45;
 
-    --radius: 10px;
+    --shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+    --backdrop: rgba(8, 7, 6, 0.6);
+
+    --radius: 8px;
     --radius-sm: 6px;
 
     --space-1: 4px;
@@ -37,6 +47,58 @@
     color-scheme: dark;
 }
 
+@media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) {
+        --bg: #fbfaf7;
+        --surface: #ffffff;
+        --surface-raised: #f2f0eb;
+        --surface-hover: #ebe8e1;
+        --selected: #f4f0e7;
+        --border: #e4e0d8;
+        --border-strong: #cfc9be;
+        --text: #1c1a17;
+        --text-muted: #4f4a42;
+        --text-faint: #6b6458;
+        --on-primary: #fbfaf7;
+        --positive: #1f7a3f;
+        --negative: #b3392a;
+        --warning: #8a5a00;
+        --pinned: #a36a00;
+        --rarity-common: #5f6670;
+        --rarity-uncommon: #23709e;
+        --rarity-rare: #8f6a00;
+        --rarity-mythic: #c24812;
+        --shadow: 0 10px 30px rgba(40, 30, 20, 0.14);
+        --backdrop: rgba(40, 34, 28, 0.35);
+        color-scheme: light;
+    }
+}
+
+:root[data-theme="light"] {
+    --bg: #fbfaf7;
+    --surface: #ffffff;
+    --surface-raised: #f2f0eb;
+    --surface-hover: #ebe8e1;
+    --selected: #f4f0e7;
+    --border: #e4e0d8;
+    --border-strong: #cfc9be;
+    --text: #1c1a17;
+    --text-muted: #4f4a42;
+    --text-faint: #6b6458;
+    --on-primary: #fbfaf7;
+    --positive: #1f7a3f;
+    --negative: #b3392a;
+    --warning: #8a5a00;
+    --pinned: #a36a00;
+    --rarity-common: #5f6670;
+    --rarity-uncommon: #23709e;
+    --rarity-rare: #8f6a00;
+    --rarity-mythic: #c24812;
+    --shadow: 0 10px 30px rgba(40, 30, 20, 0.14);
+    --backdrop: rgba(40, 34, 28, 0.35);
+    color-scheme: light;
+}
+
 * { box-sizing: border-box; }
 
 html, body { margin: 0; padding: 0; height: 100%; }
@@ -44,65 +106,92 @@ html, body { margin: 0; padding: 0; height: 100%; }
 body {
     background: var(--bg);
     color: var(--text);
-    font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+    font-family: "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, sans-serif;
     font-size: 14px;
     line-height: 1.5;
     -webkit-font-smoothing: antialiased;
 }
 
-h1, h2, h3 { margin: 0; font-weight: 600; letter-spacing: -0.01em; }
+/* Hierarchy by size and weight only: a page title, a section heading, body text, and small text. */
+h1, h2, h3 { margin: 0; font-weight: 600; }
+h1 { font-size: 22px; letter-spacing: -0.01em; }
 
-button {
+a { color: inherit; }
+
+button, a.button {
     font: inherit;
     cursor: pointer;
     border: 1px solid var(--border-strong);
-    background: var(--surface-raised);
+    background: transparent;
     color: var(--text);
-    padding: 8px 14px;
+    padding: 7px 13px;
     border-radius: var(--radius-sm);
-    transition: background 120ms ease, border-color 120ms ease, opacity 120ms ease;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+    transition: background 120ms ease, border-color 120ms ease;
 }
 
-button:hover:not(:disabled) { background: var(--surface-hover); border-color: var(--accent); }
-button:disabled { opacity: 0.45; cursor: not-allowed; }
+button:hover:not(:disabled), a.button:hover { background: var(--surface-raised); }
+button:disabled { opacity: 0.5; cursor: not-allowed; }
 
-button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {
-    outline: 2px solid var(--accent);
+button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible,
+[tabindex]:focus-visible {
+    outline: 2px solid var(--text);
     outline-offset: 2px;
 }
 
+/* The one filled button on screen is the thing to do next. */
 button.primary {
-    background: var(--accent);
-    border-color: var(--accent);
-    color: #1a1204;
+    background: var(--text);
+    border-color: var(--text);
+    color: var(--on-primary);
     font-weight: 600;
 }
 
-button.primary:hover:not(:disabled) { filter: brightness(1.08); }
+button.primary:hover:not(:disabled) { background: var(--text-muted); border-color: var(--text-muted); }
 
-input[type="text"], input[type="number"], select {
+/* A button that reads as a link: secondary actions in running text and the status bar. */
+button.link {
+    padding: 0;
+    border: none;
+    background: none;
+    color: inherit;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+button.link:hover:not(:disabled) { background: none; color: var(--text); }
+
+input[type="text"], input[type="number"], select, textarea {
     font: inherit;
-    background: var(--bg);
+    background: var(--surface);
     color: var(--text);
     border: 1px solid var(--border-strong);
     border-radius: var(--radius-sm);
-    padding: 7px 10px;
+    padding: 6px 10px;
     width: 100%;
 }
+
+input::placeholder, textarea::placeholder { color: var(--text-faint); }
 
 /* The browser's own arrow sits against the border; this one keeps the same inset as the text.
    Rules that tint a select must set background-color, not background, or the arrow goes. */
 select {
     appearance: none;
-    padding-right: 34px;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 4.5 6 8l3.5-3.5' fill='none' stroke='%239aa7b4' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    padding-right: 32px;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 4.5 6 8l3.5-3.5' fill='none' stroke='%23958c7f' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
     background-repeat: no-repeat;
-    background-position: right 12px center;
+    background-position: right 11px center;
     background-size: 12px;
     cursor: pointer;
 }
 
 select:disabled { cursor: not-allowed; opacity: 0.6; }
+
+input[type="checkbox"], input[type="range"] { accent-color: var(--text); }
 
 /* ---------- App shell ---------- */
 
@@ -115,7 +204,7 @@ select:disabled { cursor: not-allowed; opacity: 0.6; }
     align-items: center;
     gap: var(--space-5);
     padding: var(--space-3) var(--space-5);
-    background: var(--surface);
+    background: var(--bg);
     border-bottom: 1px solid var(--border);
     position: sticky;
     top: 0;
@@ -123,40 +212,47 @@ select:disabled { cursor: not-allowed; opacity: 0.6; }
     flex-wrap: wrap;
 }
 
-.brand { display: flex; flex-direction: column; line-height: 1.25; }
-.brand-name { font-size: 16px; font-weight: 700; }
-.brand-name span { color: var(--accent); }
-.brand-tagline { font-size: 12px; color: var(--text-faint); }
+.brand { font-size: 15px; font-weight: 650; white-space: nowrap; }
 
-.topbar-stats { display: flex; gap: var(--space-5); margin-left: auto; align-items: center; flex-wrap: wrap; }
+.topnav { display: flex; gap: var(--space-5); }
 
-.stat { display: flex; flex-direction: column; line-height: 1.25; }
-
-.stat-label {
-    font-size: 11px;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    color: var(--text-faint);
+.topnav a {
+    color: var(--text-muted);
+    text-decoration: none;
+    padding: 4px 0;
+    border-bottom: 2px solid transparent;
 }
 
-.stat-value { font-weight: 600; font-variant-numeric: tabular-nums; }
+.topnav a:hover { color: var(--text); }
+.topnav a.active { color: var(--text); border-bottom-color: var(--text); }
 
-.wildcard-row { display: flex; gap: var(--space-3); font-variant-numeric: tabular-nums; }
+.wallet {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+    color: var(--text-muted);
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+}
 
-/* #57: wildcards never read; the tooltip says what to do in MTG Arena. */
-.wildcard-unknown { font-size: 11px; color: var(--warning); cursor: help; text-decoration: underline dotted; }
-.wildcard, .wc-part { display: inline-flex; align-items: center; gap: 5px; font-weight: 600; }
+.wallet strong { color: var(--text); font-weight: 600; }
 
-/* The same diamond marks a wildcard total in the topbar and a wildcard count in a deck
+/* With a deck open: how many more of this rarity it needs than the player has. */
+.short-by { color: var(--negative); font-size: 12px; margin-left: 2px; }
+
+.wildcard, .wc-part { display: inline-flex; align-items: center; gap: 5px; font-weight: 600; font-variant-numeric: tabular-nums; }
+
+/* The same diamond marks a wildcard total in the top bar and a wildcard count in a deck
    row, so the four numbers in a row read as the same currency as the four in the header. */
 .wildcard::before, .wc-part::before {
     content: "";
-    border-radius: 2px;
+    border-radius: 1px;
     transform: rotate(45deg);
     background: currentColor;
 }
 
-.wildcard::before { width: 9px; height: 9px; }
+.wildcard::before { width: 7px; height: 7px; }
 .wc-part::before { width: 5px; height: 5px; }
 
 .wildcard.common, .wc-part.common { color: var(--rarity-common); }
@@ -166,52 +262,104 @@ select:disabled { cursor: not-allowed; opacity: 0.6; }
 
 .actions { display: flex; gap: var(--space-2); flex-wrap: wrap; }
 
-.export-menu { position: relative; }
+/* The theme switch: the sun in the dark theme, the moon in the light one - the theme a
+   click leads to. Picked in CSS by the same two ways into light as the tokens above. */
+.theme-switch { width: 37px; align-self: stretch; padding: 0; justify-content: center; color: var(--text-muted); }
+.theme-switch:hover:not(:disabled) { color: var(--text); }
+.theme-switch .icon-moon { display: none; }
 
-.export-options {
+@media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) .theme-switch .icon-sun { display: none; }
+    :root:not([data-theme="dark"]) .theme-switch .icon-moon { display: block; }
+}
+
+:root[data-theme="light"] .theme-switch .icon-sun { display: none; }
+:root[data-theme="light"] .theme-switch .icon-moon { display: block; }
+
+/* ---------- Menu (More) ---------- */
+
+.menu { position: relative; }
+
+.menu-dismiss { position: fixed; inset: 0; z-index: 25; }
+
+.menu-options {
     position: absolute;
     right: 0;
     top: calc(100% + var(--space-1));
     z-index: 30;
-    min-width: 260px;
+    min-width: 290px;
     display: flex;
     flex-direction: column;
     padding: var(--space-1);
-    background: var(--surface-raised);
+    background: var(--surface);
     border: 1px solid var(--border-strong);
-    border-radius: var(--radius-sm);
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
 }
 
-.export-options a {
+.menu-options a, .menu-options button {
     display: flex;
     flex-direction: column;
+    align-items: flex-start;
+    gap: 0;
     padding: var(--space-2) var(--space-3);
+    border: none;
     border-radius: var(--radius-sm);
     color: var(--text);
     text-decoration: none;
+    text-align: left;
+    white-space: normal;
 }
 
-.export-options a span { font-size: 12px; color: var(--text-muted); }
-.export-options a:hover { background: var(--surface-hover); }
-.export-options a.disabled { opacity: 0.45; pointer-events: none; }
+.menu-options a span, .menu-options button span { font-size: 12.5px; color: var(--text-muted); }
+.menu-options a:hover, .menu-options button:hover:not(:disabled) { background: var(--surface-raised); }
+.menu-options a.disabled { opacity: 0.5; pointer-events: none; }
+
+.menu-heading {
+    margin-top: var(--space-2);
+    padding: var(--space-2) var(--space-3) var(--space-1);
+    border-top: 1px solid var(--border);
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--text-muted);
+}
+
+/* ---------- Status bar ---------- */
+
+.page { flex: 1; }
 
 .statusbar {
-    padding: var(--space-2) var(--space-5);
-    background: var(--surface-raised);
-    border-bottom: 1px solid var(--border);
-    color: var(--text-muted);
-    font-size: 13px;
+    position: sticky;
+    bottom: 0;
+    z-index: 20;
     display: flex;
     align-items: center;
-    gap: var(--space-2);
+    gap: var(--space-3);
+    padding: 6px var(--space-5);
+    background: var(--bg);
+    border-top: 1px solid var(--border);
+    color: var(--text-muted);
+    font-size: 12.5px;
 }
 
+.status-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.status-text.error { color: var(--negative); font-weight: 600; }
+
+.status-links { display: flex; align-items: center; gap: var(--space-4); }
+.status-links a { text-decoration: none; }
+.status-links a:hover { color: var(--text); text-decoration: underline; }
+.status-links button.link { text-decoration: none; }
+.status-links button.link:hover:not(:disabled) { text-decoration: underline; }
+
+/* A downloaded update waiting for a restart. */
+.update-ready { display: inline-flex; align-items: center; gap: var(--space-2); color: var(--positive); font-weight: 600; }
+.update-ready button { padding: 2px 10px; font-weight: 400; }
+
 .spinner {
-    width: 13px;
-    height: 13px;
+    width: 12px;
+    height: 12px;
     border: 2px solid var(--border-strong);
-    border-top-color: var(--accent);
+    border-top-color: var(--text);
     border-radius: 50%;
     animation: spin 0.8s linear infinite;
     flex: none;
@@ -223,32 +371,33 @@ select:disabled { cursor: not-allowed; opacity: 0.6; }
 
 .workspace {
     display: grid;
-    grid-template-columns: clamp(200px, 20vw, 260px) minmax(0, 1fr);
-    gap: var(--space-5);
-    padding: var(--space-5);
+    grid-template-columns: 232px minmax(0, 1fr);
+    gap: 40px;
+    padding: var(--space-5) 28px;
     align-items: start;
-    flex: 1;
 }
 
 .panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); }
 
-.filters { padding: var(--space-4); position: sticky; top: 92px; }
+.filters { position: sticky; top: 80px; }
 
 /* Both only appear in the narrow layout below. */
 .filters-backdrop {
     display: none;
     position: fixed;
     inset: 0;
-    background: rgba(5, 8, 12, 0.6);
+    background: var(--backdrop);
     z-index: 50;
 }
 
-.filters-toggle {
-    display: none;
-    align-items: center;
-    gap: 6px;
-    padding: 5px 10px;
-    font-size: 13px;
+.filters-toggle { padding: 5px 10px; font-size: 13px; }
+.filters-toggle.has-active { border-color: var(--text); }
+.filter-count { font-weight: 600; font-variant-numeric: tabular-nums; }
+
+/* Wide window: the Filters button collapses the column, and the list takes the width. */
+@media (min-width: 1001px) {
+    .workspace.filters-toggled { grid-template-columns: minmax(0, 1fr); }
+    .workspace.filters-toggled .filters { display: none; }
 }
 
 /* Below this the sidebar and the deck table stop fitting side by side - the table alone
@@ -259,8 +408,7 @@ select:disabled { cursor: not-allowed; opacity: 0.6; }
 @media (max-width: 1000px) {
     .workspace { grid-template-columns: minmax(0, 1fr); }
 
-    .filters-toggle { display: inline-flex; }
-    .workspace.filters-open .filters-backdrop { display: block; }
+    .workspace.filters-toggled .filters-backdrop { display: block; }
 
     .filters {
         position: fixed;
@@ -268,20 +416,19 @@ select:disabled { cursor: not-allowed; opacity: 0.6; }
         left: 0;
         bottom: 0;
         z-index: 60;
-        width: 280px;
+        width: 290px;
         max-width: 85vw;
         overflow-y: auto;
-        border-radius: 0;
-        border-top: none;
-        border-bottom: none;
-        border-left: none;
-        box-shadow: 0 0 32px rgba(0, 0, 0, 0.6);
+        padding: var(--space-5);
+        background: var(--surface);
+        border-right: 1px solid var(--border);
+        box-shadow: var(--shadow);
         visibility: hidden;
         transform: translateX(-100%);
         transition: transform 160ms ease, visibility 160ms ease;
     }
 
-    .workspace.filters-open .filters { visibility: visible; transform: none; }
+    .workspace.filters-toggled .filters { visibility: visible; transform: none; }
 }
 
 /* Narrower still: the wildcard cost and craftability carry the decision, so the owned
@@ -290,140 +437,147 @@ select:disabled { cursor: not-allowed; opacity: 0.6; }
 @media (max-width: 880px) {
     .deck-table .col-owned { display: none; }
 }
+
+/* ---------- Filters ---------- */
+
 .filter-group { margin-bottom: var(--space-5); }
 .filter-group:last-child { margin-bottom: 0; }
 
-.filter-title {
-    font-size: 11px;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    color: var(--text-faint);
-    margin-bottom: var(--space-2);
+.filter-title { font-size: 13px; font-weight: 600; margin: 0 0 var(--space-2); }
+.filter-subtitle { font-size: 12.5px; font-weight: 500; color: var(--text-muted); margin: var(--space-3) 0 var(--space-2); }
+
+.color-picker { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: var(--space-2); }
+
+.color-pip {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: 1px solid var(--border-strong);
+    background: transparent;
+    display: grid;
+    place-items: center;
+    font-size: 16px;
+    padding: 0;
+    opacity: 0.45;
+    transition: opacity 120ms ease, border-color 120ms ease;
 }
 
+.color-pip:hover:not(:disabled) { opacity: 0.8; background: transparent; }
+.color-pip.active { opacity: 1; border-color: var(--text); }
+
+.checkbox-row { display: flex; align-items: center; gap: var(--space-2); cursor: pointer; user-select: none; margin: var(--space-1) 0; color: var(--text); }
+.checkbox-row input { width: 15px; height: 15px; cursor: pointer; margin: 0; }
+.checkbox-row input:disabled + span { color: var(--text-faint); }
+
+/* The pinned decks' colour, next to the filter that keeps only them. */
+.pinned-mark { color: var(--pinned); flex: none; }
+.hint { color: var(--text-faint); font-size: 12.5px; margin-top: var(--space-1); }
+
+/* One input per rarity, labelled in the same colours as the wildcard breakdown. Two
+   columns, not four: the filter column is too narrow to fit "Uncommon" above a quarter of it. */
+.rarity-budget { display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--space-2); }
+.rarity-budget label { display: flex; flex-direction: column; gap: var(--space-1); font-size: 12.5px; min-width: 0; }
+.rarity-budget input { padding: 5px 8px; }
+
+.owned-threshold { display: flex; align-items: center; gap: var(--space-3); }
+.owned-threshold input { flex: 1; }
+.owned-threshold-value { min-width: 4ch; text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
+
+/* ---------- Page head and format ---------- */
+
+.page-head { display: flex; align-items: center; gap: var(--space-4); margin-bottom: var(--space-4); flex-wrap: wrap; }
+
 .segmented {
-    display: flex;
-    background: var(--bg);
+    display: inline-flex;
     border: 1px solid var(--border-strong);
     border-radius: var(--radius-sm);
     overflow: hidden;
 }
 
 .segmented button {
-    flex: 1;
     border: none;
     border-radius: 0;
     background: transparent;
-    padding: 7px 8px;
+    padding: 5px 12px;
     font-size: 13px;
     color: var(--text-muted);
 }
 
-.segmented button.active { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+.segmented button + button { border-left: 1px solid var(--border-strong); }
+.segmented button:hover:not(:disabled):not(.active) { color: var(--text); background: var(--surface-raised); }
+.segmented button.active { background: var(--text); color: var(--on-primary); font-weight: 600; }
+.segmented button.active:disabled { opacity: 1; }
 
 /* The formats that are not buttons (#76); marked like a button when one of them is chosen. */
-.format-more { width: 100%; margin-top: var(--space-2); font-size: 13px; }
-.format-more.active { border-color: var(--accent); color: var(--accent); font-weight: 600; background-color: var(--accent-soft); }
+.format-more { width: auto; font-size: 13px; padding-top: 5px; padding-bottom: 5px; }
+.format-more.active { border-color: var(--text); font-weight: 600; }
 
-.color-picker { display: flex; gap: 6px; flex-wrap: wrap; }
-
-.color-pip {
-    width: 34px;
-    height: 34px;
-    border-radius: 50%;
-    border: 2px solid var(--border-strong);
-    background: var(--bg);
-    display: grid;
-    place-items: center;
-    font-size: 16px;
-    padding: 0;
-    opacity: 0.5;
-    transition: opacity 120ms ease, border-color 120ms ease, transform 120ms ease;
+/* Something the player has to do before the page can say everything, in plain view. */
+.notice {
+    margin: 0 0 var(--space-4);
+    padding: 10px 14px;
+    background: var(--surface-raised);
+    border-radius: var(--radius-sm);
+    font-size: 13px;
+    color: var(--text);
 }
-
-.color-pip:hover { opacity: 0.85; transform: translateY(-1px); }
-.color-pip.active { opacity: 1; border-color: var(--accent); }
-
-.checkbox-row { display: flex; align-items: center; gap: var(--space-2); cursor: pointer; user-select: none; }
-.checkbox-row input { width: 16px; height: 16px; accent-color: var(--accent); cursor: pointer; }
-.hint { color: var(--text-faint); font-size: 12px; margin-top: var(--space-1); }
-
-/* One input per rarity, labelled in the same colours as the wildcard breakdown. Two
-   columns, not four: the filter panel is too narrow to fit "Uncommon" above a quarter of it. */
-.rarity-budget { display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--space-2); }
-.rarity-budget label { display: flex; flex-direction: column; gap: var(--space-1); font-size: 11px; min-width: 0; }
-.rarity-budget input { padding: 5px 6px; }
-
-.owned-threshold { display: flex; align-items: center; gap: var(--space-3); }
-.owned-threshold input { flex: 1; }
-.owned-threshold-value { min-width: 3.5ch; text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
-
-input[type="range"] { accent-color: var(--accent); }
 
 /* ---------- Deck list ---------- */
 
 .list-header {
     display: flex;
-    align-items: center;
+    align-items: flex-end;
     justify-content: space-between;
-    padding: var(--space-3) var(--space-4);
     border-bottom: 1px solid var(--border);
     gap: var(--space-3);
     flex-wrap: wrap;
 }
 
-.list-title { display: flex; align-items: center; gap: var(--space-3); }
+.result-count { color: var(--text-muted); font-size: 13px; padding-bottom: 9px; }
 
-.result-count { color: var(--text-muted); font-size: 13px; }
-
-/* Which list is on screen. Sits where the heading used to, so it reads as the title. */
-.tabs { display: flex; gap: var(--space-1); }
+/* Which list is on screen. */
+.tabs { display: flex; gap: var(--space-5); }
 
 .tabs button {
     border: none;
+    border-bottom: 2px solid transparent;
+    border-radius: 0;
     background: transparent;
     color: var(--text-muted);
-    font-size: 15px;
-    font-weight: 600;
-    padding: 6px 10px;
-    border-radius: var(--radius-sm);
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
+    font-weight: 500;
+    padding: 8px 0;
+    margin-bottom: -1px;
 }
 
-.tabs button:hover:not(.active) { background: var(--surface-hover); border-color: transparent; color: var(--text); }
-.tabs button.active { background: var(--accent-soft); color: var(--accent); }
+.tabs button:hover:not(.active) { background: transparent; color: var(--text); }
+.tabs button.active { color: var(--text); border-bottom-color: var(--text); font-weight: 600; }
 
-.tab-count {
-    font-size: 11px;
-    font-weight: 700;
-    font-variant-numeric: tabular-nums;
-    padding: 1px 6px;
-    border-radius: 999px;
-    background: var(--surface-raised);
-    color: var(--text-muted);
-}
+.tab-count { color: var(--text-faint); font-weight: 500; font-variant-numeric: tabular-nums; }
 
-.tabs button.active .tab-count { background: var(--accent); color: #1a1204; }
+/* Why a deck cannot be played. Only the My decks tab keeps such decks. */
+.deck-warning { font-size: 12.5px; color: var(--warning); margin-top: 2px; }
 
-/* Why a deck cannot be played. Only the User decks tab keeps such decks. */
-.deck-warning {
-    font-size: 12px;
-    color: var(--warning);
-    margin-top: 2px;
+/* A warning sign drawn in the text's own colour, so it follows the theme. */
+.deck-warning::before, .arena-deck-warning::before {
+    content: "";
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    margin-right: 5px;
+    vertical-align: -1px;
+    background: currentColor;
+    -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath fill-rule='evenodd' d='M8 1.2 15.4 14.5H.6ZM7.2 6v4.4h1.6V6Zm0 5.6v1.6h1.6v-1.6Z'/%3E%3C/svg%3E") no-repeat center / contain;
+    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath fill-rule='evenodd' d='M8 1.2 15.4 14.5H.6ZM7.2 6v4.4h1.6V6Zm0 5.6v1.6h1.6v-1.6Z'/%3E%3C/svg%3E") no-repeat center / contain;
 }
 
 .deck-table { width: 100%; border-collapse: collapse; }
 
 .deck-table th {
     text-align: left;
-    font-size: 11px;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    color: var(--text-faint);
-    font-weight: 600;
-    padding: var(--space-2) var(--space-3);
+    font-size: 12.5px;
+    color: var(--text-muted);
+    font-weight: 500;
+    padding: 10px;
     border-bottom: 1px solid var(--border);
     white-space: nowrap;
     user-select: none;
@@ -431,74 +585,50 @@ input[type="range"] { accent-color: var(--accent); }
 
 .deck-table th.sortable { cursor: pointer; }
 .deck-table th.sortable:hover { color: var(--text); }
-.deck-table th.active { color: var(--accent); }
+.deck-table th.active { color: var(--text); font-weight: 600; }
 
-.deck-table td { padding: var(--space-3); border-bottom: 1px solid var(--border); vertical-align: middle; }
+.deck-table td { padding: 12px 10px; border-bottom: 1px solid var(--border); vertical-align: middle; }
 
 .deck-table tbody tr { cursor: pointer; transition: background 100ms ease; }
-.deck-table tbody tr:hover { background: var(--surface-hover); }
-.deck-table tbody tr.selected { background: var(--accent-soft); }
+.deck-table tbody tr:hover { background: var(--surface-raised); }
+.deck-table tbody tr.selected { background: var(--selected); }
 
-.deck-name { font-weight: 600; }
-.deck-meta { color: var(--text-faint); font-size: 12px; }
-
-/* The wildcard total is a single badge, not a column of digits. The header inherited
-   .deck-table th's left alignment while the cell was right-aligned, so the badge drifted
-   to the far side of a wide column and sat against Breakdown - which read as though the
-   number belonged to that column. Header and cell are centred together instead. */
-.deck-table th.num,
-.deck-table td.num {
-    text-align: center;
-    font-variant-numeric: tabular-nums;
-}
-
-.wc-total {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-width: 34px;
-    padding: 3px 8px;
-    border-radius: 999px;
-    font-weight: 700;
-    font-variant-numeric: tabular-nums;
-    background: var(--surface-raised);
-    border: 1px solid var(--border-strong);
-}
-
-.wc-total.zero { background: var(--positive-soft); border-color: var(--positive); color: var(--positive); }
+.deck-name { font-size: 15px; font-weight: 600; }
+.deck-meta { color: var(--text-faint); font-size: 12.5px; }
 
 /* Total and composition as one unit: the number that decides anything is not the total
    alone but what it is made of. */
-.wc-cost { display: inline-flex; align-items: center; gap: var(--space-2); }
+.wc-cost { display: inline-flex; align-items: center; gap: var(--space-3); }
 
-.wc-parts { display: inline-flex; gap: 7px; font-size: 11px; font-variant-numeric: tabular-nums; }
+.wc-total { min-width: 2ch; font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.wc-total.zero { color: var(--positive); }
+
+.wc-parts { display: inline-flex; gap: var(--space-2); font-size: 12px; }
 
 /* Dimmed, not hidden - "no mythics needed" is worth knowing. */
-.wc-part.off { color: var(--text-faint); opacity: 0.45; }
+.wc-part.off { opacity: 0.35; }
 
-.wc-cost.large .wc-total { font-size: 20px; min-width: 44px; padding: 5px 12px; }
-.wc-cost.large .wc-parts { font-size: 13px; gap: var(--space-2); }
+.wc-cost.large .wc-total { font-size: 24px; }
+.wc-cost.large .wc-parts { font-size: 13px; gap: var(--space-3); }
 .wc-cost.large .wc-part::before { width: 7px; height: 7px; }
 
 .owned-cell { display: flex; align-items: center; gap: var(--space-2); }
 
-.owned-bar { position: relative; height: 6px; width: 84px; border-radius: 999px; background: var(--border); overflow: hidden; }
-.owned-bar > div { height: 100%; background: var(--positive); border-radius: 999px; }
-.owned-value { font-size: 12px; color: var(--text-muted); font-variant-numeric: tabular-nums; min-width: 34px; }
+.owned-bar { height: 4px; width: 80px; border-radius: 2px; background: var(--border-strong); overflow: hidden; }
+.owned-bar > div { height: 100%; background: var(--positive); }
+.owned-value { font-size: 12.5px; color: var(--text-muted); font-variant-numeric: tabular-nums; min-width: 4ch; }
+.owned-value.complete { color: var(--positive); font-weight: 600; }
 
-.badge {
-    display: inline-block;
-    padding: 2px 8px;
-    border-radius: 999px;
-    font-size: 11px;
-    font-weight: 600;
-    border: 1px solid transparent;
-    white-space: nowrap;
-}
+/* Can I build it: yes, or what is missing - never a bare "no". */
+.verdict { font-size: 13px; white-space: nowrap; }
+.verdict.yes { color: var(--positive); font-weight: 600; }
+.verdict.no { color: var(--text-muted); }
+.verdict.unknown { color: var(--text-faint); cursor: help; }
 
-.badge.yes { background: var(--positive-soft); color: var(--positive); border-color: rgba(78, 194, 122, 0.4); }
-.badge.no { background: rgba(227, 93, 93, 0.12); color: var(--negative); border-color: rgba(227, 93, 93, 0.35); }
-.badge.unknown { background: transparent; color: var(--text-faint); border-color: var(--border-strong); cursor: help; }
+/* A short status word next to a name, e.g. "In the app" or "craftable". Text, not a pill. */
+.badge { font-size: 12px; font-weight: 600; white-space: nowrap; color: var(--text-muted); }
+.badge.yes { color: var(--positive); }
+.badge.no { color: var(--negative); }
 
 .colors { display: inline-flex; gap: 2px; align-items: center; }
 .colors .ms { font-size: 15px; }
@@ -509,7 +639,7 @@ input[type="range"] { accent-color: var(--accent); }
     align-items: center;
     justify-content: space-between;
     gap: var(--space-3);
-    padding: var(--space-3) var(--space-4);
+    padding: var(--space-4) 0;
     flex-wrap: wrap;
 }
 
@@ -518,16 +648,16 @@ input[type="range"] { accent-color: var(--accent); }
 .page-size { display: flex; align-items: center; gap: var(--space-2); color: var(--text-muted); font-size: 13px; }
 .page-size select { width: auto; }
 
-.empty { padding: var(--space-6); text-align: center; color: var(--text-muted); }
-.empty h3 { margin-bottom: var(--space-2); color: var(--text); }
+.empty { padding: var(--space-6) var(--space-4); text-align: center; color: var(--text-muted); }
+.empty h3 { margin-bottom: var(--space-2); color: var(--text); font-size: 16px; }
 
-/* A format named in a sentence that switches to it, e.g. an empty User decks tab (#76). */
+/* A format named in a sentence that switches to it, e.g. an empty My decks tab (#76). */
 .empty .link-button {
     padding: 0;
     border: none;
     background: none;
     font: inherit;
-    color: var(--accent);
+    color: var(--text);
     text-decoration: underline;
 }
 
@@ -540,64 +670,56 @@ input[type="range"] { accent-color: var(--accent); }
    read about a deck clicked at the top, then scrolling back to pick another. */
 .detail-row > td {
     padding: 0 !important;
-    background: var(--bg);
-    border-bottom: 1px solid var(--border);
+    background: var(--selected);
+    border-bottom: 1px solid var(--border-strong);
 }
 
 /* The open row and its drawer have to read as one block, or the drawer looks like it
    belongs to whatever row follows. */
 .deck-table tbody tr.open > td { border-bottom-color: transparent; }
-.deck-table tbody tr.open:hover { background: var(--accent-soft); }
+.deck-table tbody tr.open:hover { background: var(--selected); }
 
-.deck-detail {
-    border-left: 3px solid var(--accent);
-    padding-bottom: var(--space-2);
-}
-
-.deck-detail .detail-header { border-bottom: 1px solid var(--border); }
+.deck-detail { padding: 0 var(--space-2) var(--space-3); }
 
 .detail-header {
     display: flex;
     align-items: center;
-    gap: var(--space-3);
-    padding: var(--space-4);
-    border-bottom: 1px solid var(--border);
+    gap: var(--space-4);
+    padding: var(--space-2) var(--space-3) var(--space-3);
     flex-wrap: wrap;
 }
 
-.detail-header h2 { font-size: 16px; }
-.detail-actions { margin-left: auto; display: flex; gap: var(--space-2); }
+.detail-header .result-count { padding-bottom: 0; }
+.detail-actions { margin-left: auto; display: flex; gap: var(--space-2); flex-wrap: wrap; }
 
 .card-columns {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
     gap: var(--space-5);
-    padding: var(--space-4);
+    padding: var(--space-2) var(--space-3);
 }
 
-.card-list-title {
-    font-size: 12px;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    color: var(--text-faint);
-    margin-bottom: var(--space-2);
-}
+.card-list-title { font-size: 13px; font-weight: 600; margin: 0 0 var(--space-1); }
+.card-list-title:not(:first-child) { margin-top: var(--space-4); }
 
+/* Every card of the list, owned ones included. The ones still missing stand out by
+   weight and by the "need" in their rarity's colour; the ones owned step back. */
 .card-row {
     display: flex;
     align-items: center;
     gap: var(--space-2);
-    padding: 5px 8px;
+    padding: 3px 6px;
     border-radius: var(--radius-sm);
-    border-left: 3px solid transparent;
 }
 
-.card-row.owned { border-left-color: var(--positive); }
-.card-row.partial { border-left-color: var(--warning); }
-.card-row.missing { border-left-color: var(--negative); background: rgba(227, 93, 93, 0.06); }
+.card-row:hover { background: var(--surface-raised); }
 
-.card-qty { font-variant-numeric: tabular-nums; color: var(--text-muted); min-width: 46px; }
+.card-qty { font-variant-numeric: tabular-nums; min-width: 46px; color: var(--text-faint); }
 .card-name { flex: 1; }
+
+.card-row.owned .card-name { color: var(--text-muted); }
+.card-row.partial .card-qty, .card-row.missing .card-qty { color: var(--text); }
+.card-row.missing .card-name { font-weight: 600; }
 
 /* #61: price the open deck without its non-basic lands. */
 .exclude-lands {
@@ -610,13 +732,9 @@ input[type="range"] { accent-color: var(--accent); }
     user-select: none;
 }
 
-.exclude-lands input { accent-color: var(--accent); cursor: pointer; }
+.exclude-lands input { cursor: pointer; }
 
-.lands-note {
-    padding: var(--space-2) var(--space-4) 0;
-    font-size: 13px;
-    color: var(--text-muted);
-}
+.lands-note { padding: 0 var(--space-3) var(--space-2); font-size: 13px; color: var(--text-muted); }
 
 /* The card image on hover (#59). Scryfall's rules: the whole card, scaled proportionally, never
    cropped, filtered or covered, so the artist and copyright lines stay visible. */
@@ -640,7 +758,7 @@ input[type="range"] { accent-color: var(--accent); }
     background: var(--surface);
     border: 1px solid var(--border-strong);
     border-radius: 14px;
-    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.55);
+    box-shadow: var(--shadow);
     pointer-events: none;
 }
 
@@ -657,18 +775,21 @@ input[type="range"] { accent-color: var(--accent); }
     border-radius: 10px;
     background: var(--surface-raised);
 }
+
 .card-need { font-size: 12px; font-weight: 600; white-space: nowrap; }
 .card-need.c { color: var(--rarity-common); }
 .card-need.u { color: var(--rarity-uncommon); }
 .card-need.r { color: var(--rarity-rare); }
 .card-need.m { color: var(--rarity-mythic); }
 
+.card-have { color: var(--positive); font-size: 12px; font-weight: 700; }
+
 .export-area {
     width: 100%;
     min-height: 240px;
     font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
     font-size: 12px;
-    background: var(--bg);
+    background: var(--surface);
     color: var(--text);
     border: 1px solid var(--border-strong);
     border-radius: var(--radius-sm);
@@ -679,9 +800,9 @@ input[type="range"] { accent-color: var(--accent); }
 /* ---------- Pinning ---------- */
 
 .deck-table .pin-col {
-    width: 44px;
+    width: 40px;
     padding-left: var(--space-2);
-    padding-right: var(--space-2);
+    padding-right: 0;
     text-align: center;
 }
 
@@ -695,12 +816,11 @@ input[type="range"] { accent-color: var(--accent); }
     color: var(--text-faint);
     padding: 0;
     border-radius: var(--radius-sm);
-    transition: color 120ms ease, transform 120ms ease;
 }
 
-.pin:hover { background: transparent; color: var(--accent); transform: scale(1.15); }
-.pin.on { color: var(--accent); }
-.pin.on svg { filter: drop-shadow(0 0 4px rgba(232, 163, 61, 0.45)); }
+/* A pinned deck is one the player is working towards: the one warm mark in the list. */
+.pin:hover:not(:disabled) { background: var(--surface-hover); color: var(--text); }
+.pin.on, .pin.on:hover:not(:disabled) { color: var(--pinned); }
 
 .progress {
     margin-left: var(--space-2);
@@ -718,7 +838,7 @@ input[type="range"] { accent-color: var(--accent); }
 
 .picker-label {
     display: block;
-    font-size: 12px;
+    font-size: 12.5px;
     color: var(--text-muted);
     margin-bottom: var(--space-1);
 }
@@ -734,10 +854,10 @@ input[type="range"] { accent-color: var(--accent); }
     margin: 0;
     padding: 4px;
     list-style: none;
-    background: var(--surface-raised);
+    background: var(--surface);
     border: 1px solid var(--border-strong);
     border-radius: var(--radius-sm);
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+    box-shadow: var(--shadow);
     max-height: 220px;
     overflow-y: auto;
 }
@@ -751,81 +871,41 @@ input[type="range"] { accent-color: var(--accent); }
     padding: 6px 8px;
     border-radius: 4px;
     font-size: 13px;
+    white-space: normal;
 }
 
-.suggestions button:hover { background: var(--accent-soft); color: var(--accent); }
+.suggestions button:hover:not(:disabled) { background: var(--surface-raised); }
 
 .chips { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px; }
 
 .chip {
     display: inline-flex;
     align-items: center;
-    gap: 5px;
-    padding: 3px 6px 3px 9px;
-    border-radius: 999px;
-    background: var(--accent-soft);
-    border: 1px solid rgba(232, 163, 61, 0.35);
+    gap: 4px;
+    padding: 2px 4px 2px 9px;
+    border-radius: var(--radius-sm);
+    background: var(--surface-raised);
     color: var(--text);
-    font-size: 12px;
+    font-size: 12.5px;
 }
 
 .chip button {
     border: none;
     background: transparent;
     color: var(--text-muted);
-    padding: 0 3px;
+    padding: 0 4px;
     font-size: 14px;
     line-height: 1;
-    border-radius: 50%;
 }
 
-.chip button:hover { background: transparent; color: var(--negative); }
-
-.footer {
-    margin-top: auto;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 7px;
-    padding: var(--space-4) var(--space-5) var(--space-5);
-    color: var(--text-faint);
-    font-size: 12px;
-}
-
-.footer a {
-    color: var(--text-faint);
-    display: inline-flex;
-    transition: color 120ms ease;
-}
-
-.footer a:hover { color: var(--accent); }
-
-.footer .log-link {
-    padding: 0;
-    border: none;
-    background: none;
-    color: var(--text-faint);
-    font-size: 12px;
-    text-decoration: underline dotted;
-}
-
-.footer .log-link:hover:not(:disabled) { background: none; color: var(--accent); }
-
-/* A downloaded update waiting for a restart, at the far end of the status bar. */
-.statusbar .update-ready {
-    margin-left: auto;
-    display: inline-flex;
-    align-items: center;
-    gap: var(--space-2);
-    color: var(--accent);
-}
+.chip button:hover:not(:disabled) { background: transparent; color: var(--text); }
 
 /* ---------- Modal ---------- */
 
 .modal-backdrop {
     position: fixed;
     inset: 0;
-    background: rgba(5, 8, 12, 0.72);
+    background: var(--backdrop);
     display: grid;
     place-items: center;
     z-index: 100;
@@ -840,25 +920,33 @@ input[type="range"] { accent-color: var(--accent); }
     width: min(620px, 100%);
     max-height: 90vh;
     overflow-y: auto;
-    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.55);
+    box-shadow: var(--shadow);
 }
 
-.modal-panel h2 { margin-bottom: var(--space-2); }
+.modal-panel h2 { font-size: 18px; margin-bottom: var(--space-2); }
 .modal-actions { display: flex; justify-content: flex-end; gap: var(--space-2); margin-top: var(--space-4); }
 
 .field { margin-top: var(--space-4); }
+
+.field label {
+    display: block;
+    font-size: 13px;
+    font-weight: 600;
+    margin-bottom: var(--space-1);
+}
 
 /* Import deck: the way into the decks saved in Arena, and the picker behind it. */
 button.arena-link {
     margin-top: var(--space-3);
     width: 100%;
+    justify-content: flex-start;
+    white-space: normal;
     text-align: left;
-    border-style: dashed;
 }
-button.arena-link span { color: var(--text-muted); font-size: 12px; }
+button.arena-link span { color: var(--text-muted); font-size: 12.5px; }
 
 .arena-filter { margin-top: var(--space-3); }
-.arena-filter .count { color: var(--text-faint); font-size: 12px; margin-left: 2px; }
+.arena-filter .count { color: inherit; opacity: 0.75; font-size: 12px; margin-left: 2px; }
 
 .arena-picker {
     margin-top: var(--space-2);
@@ -881,28 +969,19 @@ button.arena-link span { color: var(--text-muted); font-size: 12px; }
     border-radius: var(--radius-sm);
     cursor: pointer;
 }
-.arena-deck:hover { background: var(--surface-hover); }
+.arena-deck:hover { background: var(--surface-raised); }
 .arena-deck input { grid-row: span 3; }
 .arena-deck-name { font-weight: 600; }
-.arena-deck-meta { font-size: 12px; color: var(--text-muted); display: flex; gap: var(--space-2); align-items: center; }
-.arena-deck-warning { grid-column: 2; font-size: 12px; color: var(--warning); }
+.arena-deck-meta { font-size: 12.5px; color: var(--text-muted); display: flex; gap: var(--space-2); align-items: center; }
+.arena-deck-warning { grid-column: 2; font-size: 12.5px; color: var(--warning); }
 .arena-deck.unsupported { opacity: 0.5; cursor: default; }
 .arena-deck.unsupported:hover { background: none; }
-.field label {
-    display: block;
-    font-size: 11px;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    color: var(--text-faint);
-    margin-bottom: var(--space-1);
-}
 
 /* The cost of the pasted list, shown before the user commits to saving it. */
 .wc-preview {
     margin-top: var(--space-4);
-    padding: var(--space-3);
-    background: var(--bg);
-    border: 1px solid var(--border-strong);
+    padding: var(--space-3) var(--space-4);
+    background: var(--surface-raised);
     border-radius: var(--radius-sm);
 }
 
@@ -915,6 +994,7 @@ button.arena-link span { color: var(--text-muted); font-size: 12px; }
 }
 
 .wc-preview .picker-label { margin-bottom: 0; }
+.wc-preview .result-count { padding-bottom: 0; }
 .wc-preview .deck-warning { margin-top: var(--space-2); }
 
 .error-text { color: var(--negative); margin-top: var(--space-3); }
@@ -929,58 +1009,42 @@ button.arena-link span { color: var(--text-muted); font-size: 12px; }
 
 /* ---------- Creators tab ---------- */
 
-.topnav { display: flex; gap: var(--space-1); margin-left: var(--space-4); }
-.topnav a { color: var(--text-muted); text-decoration: none; padding: 5px 10px; border-radius: var(--radius-sm); font-weight: 600; }
-.topnav a:hover { color: var(--text); background: var(--surface-hover); }
-.topnav a.active { color: var(--accent); background: var(--accent-soft); }
-
-.creators-page { padding: var(--space-4); display: flex; flex-direction: column; gap: var(--space-4); }
+.creators-page { padding: var(--space-5) 28px; display: flex; flex-direction: column; gap: var(--space-4); }
 .creators-toolbar {
-    padding: var(--space-3) var(--space-4);
     display: flex; flex-wrap: wrap; gap: var(--space-3); align-items: center; justify-content: space-between;
+    padding-bottom: var(--space-4); border-bottom: 1px solid var(--border);
 }
-.creators-heading { display: flex; align-items: baseline; gap: var(--space-3); }
-.creators-heading h2 { font-size: 16px; }
+.creators-heading { display: flex; align-items: center; gap: var(--space-3); }
+.creators-heading .result-count { padding-bottom: 0; }
 .creators-filters { display: flex; flex-wrap: wrap; gap: var(--space-3); align-items: center; }
 .creators-filters select { width: auto; }
+.creators-filters .checkbox-row { margin: 0; }
 
-.video-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: var(--space-4); }
-.video-card {
-    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
-    overflow: hidden; display: flex; flex-direction: column;
-}
-.video-card:hover { border-color: var(--border-strong); }
-.video-thumb { position: relative; display: block; aspect-ratio: 16 / 9; background: #000; }
+.video-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: var(--space-5) var(--space-4); }
+.video-card { display: flex; flex-direction: column; }
+.video-thumb { position: relative; display: block; aspect-ratio: 16 / 9; background: #000; border-radius: var(--radius); overflow: hidden; }
 .video-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.video-thumb .play {
-    position: absolute; inset: 0; margin: auto; width: 46px; height: 46px; border-radius: 50%;
-    display: grid; place-items: center; background: rgba(0, 0, 0, 0.6); color: #fff; font-size: 18px;
-    opacity: 0; transition: opacity 0.15s;
-}
-.video-thumb:hover .play { opacity: 1; }
-.video-body { padding: var(--space-3); display: flex; flex-direction: column; gap: var(--space-2); flex: 1; }
+.video-body { padding: var(--space-3) 0 0; display: flex; flex-direction: column; gap: var(--space-2); flex: 1; }
 .video-title {
-    font-weight: 600; line-height: 1.3; min-height: 2.6em; overflow: hidden;
+    font-weight: 600; line-height: 1.35; min-height: 2.7em; overflow: hidden;
     display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
 }
 .video-deck { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
-.video-deck.muted { color: var(--text-faint); font-size: 12px; }
-.video-format { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
-.format-chip { font-size: 11px; padding: 1px 7px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); }
-.format-chip.off { background: var(--surface-raised); color: var(--text-faint); }
+.video-deck.muted { color: var(--text-faint); font-size: 12.5px; }
+.video-format { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; font-size: 12.5px; }
+.format-chip { color: var(--text-muted); font-weight: 600; }
+.format-chip.off { color: var(--text-faint); font-weight: 400; }
 
 /* Pinned to the bottom of every card, Watch first, so it never moves between card kinds. */
 .video-actions { display: flex; gap: var(--space-2); margin-top: auto; padding-top: var(--space-2); }
-.video-actions a { text-decoration: none; }
-.video-actions button { white-space: nowrap; }
 
 /* Language: a small two-way switch next to the heading (flag = English only, globe = all). */
-.lang-toggle { display: inline-flex; border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; }
+.lang-toggle { display: inline-flex; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); overflow: hidden; }
 .lang-toggle button {
     display: inline-flex; align-items: center; justify-content: center; padding: 4px 8px;
-    border: 0; border-radius: 0; background: transparent; color: var(--text-faint); opacity: 0.55;
+    border: 0; border-radius: 0; background: transparent; color: var(--text-muted); opacity: 0.55;
 }
-.lang-toggle button + button { border-left: 1px solid var(--border); }
-.lang-toggle button:hover:not(:disabled) { background: var(--surface-hover); opacity: 0.85; }
-.lang-toggle button.active { background: var(--accent-soft); color: var(--accent); opacity: 1; }
+.lang-toggle button + button { border-left: 1px solid var(--border-strong); }
+.lang-toggle button:hover:not(:disabled) { background: var(--surface-raised); opacity: 0.85; }
+.lang-toggle button.active { background: var(--surface-raised); color: var(--text); opacity: 1; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }

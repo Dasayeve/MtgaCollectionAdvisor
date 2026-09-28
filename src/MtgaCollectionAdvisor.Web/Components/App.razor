@@ -12,7 +12,26 @@
     <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png" />
     <link rel="apple-touch-icon" href="icon-192.png" />
     <link rel="manifest" href="manifest.webmanifest" />
-    <meta name="theme-color" content="#0e1116" />
+    <meta name="theme-color" content="#161514" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#fbfaf7" media="(prefers-color-scheme: light)" />
+    @* The theme follows Windows unless the player picked one; the pick is set here, before the
+       first paint, so the window never flashes in the other theme. The status bar's button
+       calls advisorTheme.toggle(); nothing about it goes through Blazor. *@
+    <script>
+        (function () {
+            var root = document.documentElement;
+            try { var saved = localStorage.getItem("theme"); if (saved) root.dataset.theme = saved; } catch (e) { }
+            window.advisorTheme = {
+                toggle: function () {
+                    var current = root.dataset.theme
+                        || (matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark");
+                    var next = current === "light" ? "dark" : "light";
+                    root.dataset.theme = next;
+                    try { localStorage.setItem("theme", next); } catch (e) { }
+                }
+            };
+        })();
+    </script>
     <ResourcePreloader />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/mana-font@latest/css/mana.css" />
     <link rel="stylesheet" href="@Assets["app.css"]" />

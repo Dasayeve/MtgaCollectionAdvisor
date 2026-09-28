@@ -93,16 +93,22 @@ public sealed record DeckFilterCriteria
     /// </summary>
     public DeckSourceFilter Source { get; init; } = DeckSourceFilter.Any;
 
-    public bool IsEmpty =>
-        Colors.Count == 0
-        && !OnlyCraftable
-        && MaxWildcards is null
-        && RarityBudget.IsUnlimited
-        && MinOwnedFraction is null
-        && string.IsNullOrWhiteSpace(NameSearch)
-        && ContainsCards.Count == 0
-        && ExcludesCards.Count == 0
-        && !OnlyPinned;
+    public bool IsEmpty => ActiveCount == 0;
+
+    /// <summary>
+    /// How many filters are set, one per control the player touched (the colours count once,
+    /// the per-rarity budget once), so a collapsed filter column can say that filters apply.
+    /// </summary>
+    public int ActiveCount =>
+        (Colors.Count > 0 ? 1 : 0)
+        + (OnlyCraftable ? 1 : 0)
+        + (MaxWildcards is not null ? 1 : 0)
+        + (RarityBudget.IsUnlimited ? 0 : 1)
+        + (MinOwnedFraction is not null ? 1 : 0)
+        + (string.IsNullOrWhiteSpace(NameSearch) ? 0 : 1)
+        + (ContainsCards.Count > 0 ? 1 : 0)
+        + (ExcludesCards.Count > 0 ? 1 : 0)
+        + (OnlyPinned ? 1 : 0);
 }
 
 public static class DeckFilter

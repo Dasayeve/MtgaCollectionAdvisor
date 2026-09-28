@@ -12,10 +12,7 @@ else
 {
     <div class="app">
         <header class="topbar">
-            <div class="brand">
-                <div class="brand-name">MTGA <span>Deck Advisor</span></div>
-                <div class="brand-tagline">Find the decks your collection can build — and what the rest will cost.</div>
-            </div>
+            <div class="brand">MTGA Deck Advisor</div>
 
             @* Only when there is somewhere else to go: with the Creators tab off, the top bar
                is exactly what it was before it existed. *@
@@ -27,26 +24,17 @@ else
                 </nav>
             }
 
-            <div class="topbar-stats">
-                <div class="stat">
-                    <span class="stat-label">Collection</span>
-                    <span class="stat-value">@Session.Collection.OwnedByGrpId.Count.ToString("N0") cards</span>
-                </div>
-                <div class="stat">
-                    <span class="stat-label">Wildcards</span>
-                    @* Never read is not zero (#57): unknown totals show as "—", with what to do. *@
-                    @{ var wallet = Session.Collection.Wildcards; }
-                    <span class="stat-value wildcard-row" title="@Session.WildcardHint">
-                        <span class="wildcard common" title="Common">@(wallet?.Commons.ToString() ?? "—")</span>
-                        <span class="wildcard uncommon" title="Uncommon">@(wallet?.Uncommons.ToString() ?? "—")</span>
-                        <span class="wildcard rare" title="Rare">@(wallet?.Rares.ToString() ?? "—")</span>
-                        <span class="wildcard mythic" title="Mythic">@(wallet?.Mythics.ToString() ?? "—")</span>
-                    </span>
-                    @if (Session.WildcardHint is { } hint)
-                    {
-                        <span class="wildcard-unknown" title="@hint">not read yet · why?</span>
-                    }
-                </div>
+            @* Never read is not zero (#57): unknown totals show as "—", and the deck list says
+               what to do in MTG Arena. *@
+            @{ var wallet = Session.Collection.Wildcards; }
+            <div class="wallet" title="@Session.WildcardHint">
+                <span><strong>@Session.Collection.OwnedByGrpId.Count.ToString("N0")</strong> cards</span>
+                @* With a deck open, a total that can't cover it says by how much. *@
+                @{ var open = Session.OpenDeckNeed; }
+                @WalletTotal("common", "Common", wallet?.Commons, open?.Commons)
+                @WalletTotal("uncommon", "Uncommon", wallet?.Uncommons, open?.Uncommons)
+                @WalletTotal("rare", "Rare", wallet?.Rares, open?.Rares)
+                @WalletTotal("mythic", "Mythic", wallet?.Mythics, open?.Mythics)
             </div>
 
             <div class="actions">
@@ -61,62 +49,84 @@ else
                     Fetch decks
                 </button>
                 <button disabled="@Session.IsBusy"
-                        title="Adds a deck by pasting a list in Arena's export format."
+                        title="Adds a deck by pasting a list in Arena's export format, or picks from the decks saved in Arena."
                         @onclick="() => _showImportDeck = true">
                     Import deck
                 </button>
-                <button disabled="@Session.IsBusy"
-                        title="Re-downloads the Scryfall card database (names, rarities and legality). Takes a few minutes."
-                        @onclick="() => Session.RefreshCardDatabaseAsync()">
-                    Update cards
-                </button>
 
-                @* Plain download links: the files are written by the /export endpoints, and
-                   Blazor leaves an anchor with a download attribute to the browser. *@
-                <div class="export-menu">
-                    <button aria-haspopup="true" aria-expanded="@(_showExport ? "true" : "false")"
-                            title="Take your data with you: the collection and your own decks, as files."
-                            @onclick="() => _showExport = !_showExport">
-                        Export ▾
+                @* The occasional actions, out of the way of the three used every session.
+                   Exports are plain download links: the files are written by the /export
+                   endpoints, and Blazor leaves an anchor with a download attribute to the browser. *@
+                <div class="menu">
+                    <button aria-haspopup="true" aria-expanded="@(_showMenu ? "true" : "false")"
+                            @onclick="() => _showMenu = !_showMenu">
+                        More <span aria-hidden="true">▾</span>
                     </button>
-                    @if (_showExport)
+                    @if (_showMenu)
                     {
                         var hasCollection = Session.Collection.OwnedByGrpId.Count > 0;
-                        <div class="export-options" role="menu">
+                        @* A click anywhere else closes the menu. *@
+                        <div class="menu-dismiss" @onclick="() => _showMenu = false"></div>
+                        <div class="menu-options" role="menu">
+                            <button role="menuitem" disabled="@Session.IsBusy" @onclick="RefreshCardsAsync">
+                                Update cards <span>Re-download the Scryfall card database (a few minutes)</span>
+                            </button>
+
+                            <div class="menu-heading">Export</div>
                             <a role="menuitem" href="export/collection.txt" download
-                               class="@(hasCollection ? "" : "disabled")" @onclick="() => _showExport = false">
+                               class="@(hasCollection ? "" : "disabled")" @onclick="() => _showMenu = false">
                                 Collection <span>Arena list (.txt)</span>
                             </a>
                             <a role="menuitem" href="export/collection.json" download
-                               class="@(hasCollection ? "" : "disabled")" @onclick="() => _showExport = false">
-                                Collection <span>with wildcards (.json)</span>
+                               class="@(hasCollection ? "" : "disabled")" @onclick="() => _showMenu = false">
+                                Collection <span>With wildcards (.json)</span>
                             </a>
-                            <a role="menuitem" href="export/user-decks.zip" download @onclick="() => _showExport = false">
-                                All user decks <span>one file per deck (.zip)</span>
+                            <a role="menuitem" href="export/user-decks.zip" download @onclick="() => _showMenu = false">
+                                My decks <span>One file per deck (.zip)</span>
                             </a>
                             @* Arena writes its saved decks to Player.log at login; the last list seen is kept. *@
                             @{ var arenaCaptured = Session.ArenaDecksCapturedAt; }
                             <a role="menuitem" href="export/arena-decks.zip" download
-                               class="@(arenaCaptured is null ? "disabled" : "")" @onclick="() => _showExport = false">
+                               class="@(arenaCaptured is null ? "disabled" : "")" @onclick="() => _showMenu = false">
                                 Decks saved in Arena
-                                <span>@(arenaCaptured is { } at ? $"read from Player.log on {at.ToLocalTime():g} (.zip)" : "log in to MTG Arena first")</span>
+                                <span>@(arenaCaptured is { } at ? $"Read from Player.log on {at.ToLocalTime():g} (.zip)" : "Log in to MTG Arena first")</span>
                             </a>
                             <a role="menuitem" href="export/arena-decks.zip?all=true" download
-                               class="@(arenaCaptured is null ? "disabled" : "")" @onclick="() => _showExport = false">
-                                Decks saved in Arena, with Wizards' decks <span>adds precons and suggested decks (.zip)</span>
+                               class="@(arenaCaptured is null ? "disabled" : "")" @onclick="() => _showMenu = false">
+                                Decks saved in Arena, with Wizards' decks <span>Adds precons and suggested decks (.zip)</span>
                             </a>
                         </div>
                     }
                 </div>
+
+                @* Handled in the page, not by Blazor: see advisorTheme in App.razor. The icon shows
+                   the theme a click leads to, and CSS picks it, so it is right from the first paint. *@
+                <button class="theme-switch" title="Switch between the light and dark theme"
+                        aria-label="Switch between the light and dark theme" onclick="advisorTheme.toggle()">
+                    <svg class="icon-sun" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">
+                        <circle cx="8" cy="8" r="3" fill="none" stroke="currentColor" stroke-width="1.4" />
+                        <path d="M8 1v1.6M8 13.4V15M1 8h1.6M13.4 8H15M3.05 3.05l1.13 1.13M11.82 11.82l1.13 1.13M3.05 12.95l1.13-1.13M11.82 4.18l1.13-1.13"
+                              stroke="currentColor" stroke-width="1.4" stroke-linecap="round" />
+                    </svg>
+                    <svg class="icon-moon" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">
+                        <path d="M13.5 9.6A5.6 5.6 0 0 1 6.4 2.5a5.6 5.6 0 1 0 7.1 7.1Z"
+                              fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" />
+                    </svg>
+                </button>
             </div>
         </header>
 
-        <div class="statusbar">
+        <main class="page">
+            @Body
+        </main>
+
+        @* A desktop app's status bar: what the app is doing on the left, the app itself on the right. *@
+        <footer class="statusbar">
             @if (Session.IsBusy)
             {
                 <span class="spinner" aria-hidden="true"></span>
             }
-            <span>@Session.Status</span>
+            <span class="status-text @(Session.StatusIsError ? "error" : "")">@Session.Status</span>
 
             @if (Updater.ReadyVersion is { } ready)
             {
@@ -129,26 +139,13 @@ else
                     </button>
                 </span>
             }
-        </div>
 
-        @Body
-
-        <footer class="footer">
-            <span>By DasaX</span>
-            <span class="version" title="MTGA Deck Advisor version">v@(Updater.CurrentVersion)</span>
-            @* The log files (#52): what to attach when reporting a problem. *@
-            <button class="log-link" title="Open the folder with the app's log files" @onclick="Session.OpenLogFolder">Logs</button>
-            <a href="https://github.com/Dasayeve/" target="_blank" rel="noopener" title="github.com/Dasayeve">
-                <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
-                    <path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38
-                        0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01
-                        1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95
-                        0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0
-                        1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87
-                        3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16
-                        8c0-4.42-3.58-8-8-8Z" />
-                </svg>
-            </a>
+            <span class="status-links">
+                <span title="MTGA Deck Advisor version">v@(Updater.CurrentVersion)</span>
+                @* The log files (#52): what to attach when reporting a problem. *@
+                <button class="link" title="Open the folder with the app's log files" @onclick="Session.OpenLogFolder">Logs</button>
+                <a href="https://github.com/Dasayeve/" target="_blank" rel="noopener" title="github.com/Dasayeve">GitHub</a>
+            </span>
         </footer>
     </div>
 
@@ -160,19 +157,39 @@ else
 
 @code {
     private bool _showImportDeck;
-    private bool _showExport;
+    private bool _showMenu;
 
     protected override void OnInitialized()
     {
         Session.Changed += OnSessionChanged;
+        Session.OpenDeckChanged += OnSessionChanged;
         Updater.Changed += OnSessionChanged;
     }
+
+    private Task RefreshCardsAsync()
+    {
+        _showMenu = false;
+        return Session.RefreshCardDatabaseAsync();
+    }
+
+    private static RenderFragment WalletTotal(string rarity, string label, int? have, int? need) => __builder =>
+    {
+        var shortBy = have is { } h && need is { } n && n > h ? n - h : 0;
+        <span class="wildcard @rarity" title="@(shortBy > 0 ? $"{label} wildcards: the open deck needs {shortBy} more" : $"{label} wildcards")">
+            @(have?.ToString() ?? "—")
+            @if (shortBy > 0)
+            {
+                <span class="short-by">−@shortBy</span>
+            }
+        </span>
+    };
 
     private void OnSessionChanged() => InvokeAsync(StateHasChanged);
 
     public void Dispose()
     {
         Session.Changed -= OnSessionChanged;
+        Session.OpenDeckChanged -= OnSessionChanged;
         Updater.Changed -= OnSessionChanged;
     }
 }

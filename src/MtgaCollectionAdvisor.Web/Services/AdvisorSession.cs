@@ -29,7 +29,21 @@ public sealed partial class AdvisorSession(AppConfig config, ILogger<AdvisorSess
     /// <summary>Set when the app could not start (database unreachable); the UI shows it.</summary>
     public string? StartupError { get; private set; }
 
-    public string Status { get; private set; } = "Ready.";
+    public string Status
+    {
+        get => _status;
+        private set
+        {
+            _status = value;
+            StatusIsError = false; // any new message replaces a failure
+        }
+    }
+
+    private string _status = "Ready.";
+
+    /// <summary>True while the status bar shows a failure, so it can be told apart from "Ready.".</summary>
+    public bool StatusIsError { get; private set; }
+
     public bool IsBusy { get; private set; }
     public string? BusyOperation { get; private set; }
 
@@ -50,6 +64,7 @@ public sealed partial class AdvisorSession(AppConfig config, ILogger<AdvisorSess
             log.LogError(ex, "Could not open the local database");
             StartupError = $"Could not open the local database: {ex.Message}";
             Status = StartupError;
+            StatusIsError = true;
             Notify();
             return;
         }
@@ -174,6 +189,26 @@ public sealed partial class AdvisorSession(AppConfig config, ILogger<AdvisorSess
     public DataExportService? DataExport => services?.DataExportService;
 
     public bool IsPinned(string sourceId) => Pins.ContainsKey(sourceId);
+
+    /// <summary>
+    /// The wildcards the deck open in the list needs, so the top bar can show which of the
+    /// player's totals fall short of it. Null when no deck is open.
+    /// </summary>
+    public WildcardNeed? OpenDeckNeed { get; private set; }
+
+    /// <summary>
+    /// Its own event, not Changed: the deck list resets to page 1 on Changed, so opening a
+    /// deck on page 3 would send the list back to page 1.
+    /// </summary>
+    public event Action? OpenDeckChanged;
+
+    /// <summary>Only raises OpenDeckChanged on a change: the deck list calls this on every render.</summary>
+    public void SetOpenDeck(WildcardNeed? need)
+    {
+        if (OpenDeckNeed == need) return;
+        OpenDeckNeed = need;
+        OpenDeckChanged?.Invoke();
+    }
 
     /// <summary>
     /// Pins or unpins without refetching anything - the ranking in memory is unchanged,
@@ -490,7 +525,7 @@ public sealed partial class AdvisorSession(AppConfig config, ILogger<AdvisorSess
             if (updated > 0) parts.Add($"{updated} updated");
             report(parts.Count == 0
                 ? "No Arena decks imported."
-                : $"Arena decks: {string.Join(", ", parts)}. Find them under User decks.");
+                : $"Arena decks: {string.Join(", ", parts)}. Find them under My decks.");
         });
 
     private async Task<IReadOnlySet<string>> LoadUserDeckIdsAsync()
@@ -570,6 +605,7 @@ public sealed partial class AdvisorSession(AppConfig config, ILogger<AdvisorSess
             // Shown in the status bar, and kept in the log file (#52) for when a player reports it.
             log.LogError(ex, "{Operation} failed", operation);
             Status = $"{operation} failed: {ex.Message}";
+            StatusIsError = true;
         }
         finally
         {

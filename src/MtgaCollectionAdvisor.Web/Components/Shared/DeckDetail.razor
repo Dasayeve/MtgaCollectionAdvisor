@@ -6,9 +6,8 @@
    it belongs to, so the deck stays where the user clicked it. *@
 
 <div class="deck-detail">
+    @* No name or colours here: the row just above says both. *@
     <div class="detail-header">
-        <h2>@Deck.Deck.Name</h2>
-        <ManaColors Colors="@Deck.Colors" />
         <span class="result-count">
             @Shown.Needed.Total wildcards needed · @Shown.OwnedFraction.ToString("P0") of the list already yours
         </span>
@@ -24,17 +23,10 @@
         <div class="detail-actions">
             @if (!string.IsNullOrWhiteSpace(Deck.Deck.Url))
             {
-                <a href="@Deck.Deck.Url" target="_blank" rel="noopener">
-                    @* A deck brought in from a creator video points back at the video: the
-                       creator is the reason the deck is here, so that is where it sends people. *@
-                    @if (CreatorVideo.IsVideoUrl(Deck.Deck.Url))
-                    {
-                        <button>▶ Watch video</button>
-                    }
-                    else
-                    {
-                        <button>Open source</button>
-                    }
+                @* A deck brought in from a creator video points back at the video: the
+                   creator is the reason the deck is here, so that is where it sends people. *@
+                <a class="button" href="@Deck.Deck.Url" target="_blank" rel="noopener">
+                    @(CreatorVideo.IsVideoUrl(Deck.Deck.Url) ? "Watch video" : "Open source")
                 </a>
             }
             <button class="primary" @onclick="() => OnCopy.InvokeAsync(Shown.Deck)">@(Copied ? "Copied!" : "Copy for Arena")</button>
@@ -166,6 +158,10 @@
         @if (gap.Missing > 0)
         {
             <span class="card-need @RarityClass(gap.Rarity)">need @gap.Missing</span>
+        }
+        else
+        {
+            <span class="card-have" title="You own all the copies this list needs">✓</span>
         }
     </div>;
 
