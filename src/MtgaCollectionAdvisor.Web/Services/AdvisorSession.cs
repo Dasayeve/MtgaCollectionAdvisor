@@ -21,6 +21,8 @@ public sealed partial class AdvisorSession(AppConfig config, ILogger<AdvisorSess
 {
     private readonly SemaphoreSlim _operationGate = new(1, 1);
     private System.Threading.Timer? _mtgaWatchTimer;
+    private System.Threading.Timer? _cardRefreshTimer;
+    private int _cardRefreshRunning;
     private bool _mtgaWasRunning;
     private AdvisorServices services = null!;
 
@@ -83,6 +85,12 @@ public sealed partial class AdvisorSession(AppConfig config, ILogger<AdvisorSess
 
         _mtgaWatchTimer = new System.Threading.Timer(_ => _ = AutoScanIfGameStartedAsync(), null,
             TimeSpan.Zero, TimeSpan.FromSeconds(20));
+
+        // A new set's cards (#89). The tick only compares stored times; the network is used when
+        // CardRefreshSchedule allows it, at most every 6 hours per call. A minute after start, so
+        // the start-up work (and a card backfill, if one runs) goes first.
+        _cardRefreshTimer = new System.Threading.Timer(_ => _ = RefreshCardsForNewSetIfNeededAsync(), null,
+            TimeSpan.FromMinutes(1), TimeSpan.FromMinutes(30));
     }
 
     /// <summary>The user's own decks per format key, so an empty User decks tab can say where the others are.</summary>
@@ -113,6 +121,37 @@ public sealed partial class AdvisorSession(AppConfig config, ILogger<AdvisorSess
         if (!CardDatabaseStore.NeedsCardDataBackfill(await services.CardDatabaseStore.CountCardDataAsync())) return;
 
         _ = Task.Run(() => RunAsync("Updating card data", ImportCardsAsync));
+    }
+
+    /// <summary>
+    /// Re-imports the card database once when the maintainer's card-data.json says a new set has
+    /// landed and Scryfall has it (#89). In the background, like the backfill above: nothing to
+    /// click, and the status bar says what is happening. Skipped during the first-run setup and
+    /// while another operation runs; a skipped tick records nothing, so a later one goes ahead.
+    /// </summary>
+    private async Task RefreshCardsForNewSetIfNeededAsync()
+    {
+        if (Setup is not null || IsBusy) return;
+        if (Interlocked.Exchange(ref _cardRefreshRunning, 1) == 1) return;
+        try
+        {
+            var now = DateTimeOffset.UtcNow;
+            var check = await services.CardRefreshService.CheckAsync(now);
+            if (check.ReadFailure is { } reason) log.LogWarning("Card refresh check learnt nothing new: {Reason}", reason);
+            if (!check.ShouldImport || IsBusy) return;
+
+            // Recorded first, so an import that fails is tried again only in the next window.
+            await services.CardRefreshService.RecordAutoImportAsync(now);
+            await RunAsync("Updating cards for a new set", ImportCardsAsync);
+        }
+        catch (Exception ex)
+        {
+            log.LogWarning(ex, "Card refresh check failed");
+        }
+        finally
+        {
+            Volatile.Write(ref _cardRefreshRunning, 0);
+        }
     }
 
     // The bodies of the operations above, shared with the first-run setup, which needs to
@@ -148,7 +187,10 @@ public sealed partial class AdvisorSession(AppConfig config, ILogger<AdvisorSess
     private async Task ImportCardsAsync(Action<string> report)
     {
         report("Downloading Scryfall bulk data (a few minutes)...");
-        await services.CardDatabaseStore.ReplaceAllAsync(services.ScryfallBulkImporter.ImportAsync());
+        // Records which Scryfall file the cards came from: every import, manual or not, is what
+        // clears a pending card-data flag (#89).
+        var file = await services.ScryfallBulkImporter.GetDefaultCardsAsync();
+        await services.CardDatabaseStore.ReplaceAllAsync(services.ScryfallBulkImporter.ImportAsync(file), file.UpdatedAt);
         CardsUpdatedAt = await services.CardDatabaseStore.GetLastImportedAsync();
         report("Card database updated.");
         await ReloadRankingAsync();
@@ -655,6 +697,7 @@ public sealed partial class AdvisorSession(AppConfig config, ILogger<AdvisorSess
     public async ValueTask DisposeAsync()
     {
         if (_mtgaWatchTimer is not null) await _mtgaWatchTimer.DisposeAsync();
+        if (_cardRefreshTimer is not null) await _cardRefreshTimer.DisposeAsync();
         if (_setupArenaPoll is not null) await _setupArenaPoll.DisposeAsync();
         if (services is not null) await services.DisposeAsync();
         _operationGate.Dispose();

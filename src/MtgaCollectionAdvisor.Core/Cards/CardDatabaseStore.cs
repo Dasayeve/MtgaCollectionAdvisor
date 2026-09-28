@@ -6,7 +6,12 @@ namespace MtgaCollectionAdvisor.Core.Cards;
 
 public sealed class CardDatabaseStore(Database database)
 {
-    public async Task ReplaceAllAsync(IAsyncEnumerable<CardInfo> cards, CancellationToken ct = default)
+    /// <param name="sourceUpdatedAt">
+    /// When Scryfall generated the file the cards come from (#89): what a card-data flag is
+    /// compared with. Null when unknown, which counts as older than any flag.
+    /// </param>
+    public async Task ReplaceAllAsync(
+        IAsyncEnumerable<CardInfo> cards, DateTimeOffset? sourceUpdatedAt = null, CancellationToken ct = default)
     {
         var importedAt = DateTimeOffset.UtcNow.ToString("O");
 
@@ -72,10 +77,14 @@ public sealed class CardDatabaseStore(Database database)
         await using (var state = connection.CreateCommand())
         {
             state.CommandText = """
-                INSERT INTO card_import_state (id, last_imported) VALUES (1, $at)
-                ON CONFLICT (id) DO UPDATE SET last_imported = excluded.last_imported
+                INSERT INTO card_import_state (id, last_imported, source_updated_at) VALUES (1, $at, $source)
+                ON CONFLICT (id) DO UPDATE SET
+                    last_imported     = excluded.last_imported,
+                    source_updated_at = excluded.source_updated_at
                 """;
             state.Parameters.AddWithValue("$at", importedAt);
+            state.Parameters.AddWithValue("$source",
+                sourceUpdatedAt is { } source ? source.ToUniversalTime().ToString("O") : DBNull.Value);
             await state.ExecuteNonQueryAsync(ct);
         }
 
@@ -103,6 +112,19 @@ public sealed class CardDatabaseStore(Database database)
         await using var reader = await command.ExecuteReaderAsync(ct);
         await reader.ReadAsync(ct);
         return new CardDataCounts(reader.GetInt32(0), reader.GetInt32(1), reader.GetInt32(2), reader.GetInt32(3), reader.GetInt32(4));
+    }
+
+    /// <summary>When Scryfall generated the file of the last import (#89); null if unknown.</summary>
+    public async Task<DateTimeOffset?> GetImportedSourceAsync(CancellationToken ct = default)
+    {
+        await using var connection = await database.OpenAsync(ct);
+        await using var command = connection.CreateCommand();
+        command.CommandText = "SELECT source_updated_at FROM card_import_state WHERE id = 1";
+        return await command.ExecuteScalarAsync(ct) is string text
+            && DateTimeOffset.TryParse(text, System.Globalization.CultureInfo.InvariantCulture,
+                System.Globalization.DateTimeStyles.None, out var at)
+            ? at
+            : null;
     }
 
     public async Task<DateTimeOffset?> GetLastImportedAsync(CancellationToken ct = default)

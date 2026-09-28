@@ -155,6 +155,21 @@ public static class Migrations
 
         // Whether a card is legal in Standard Brawl (#76). Filled the same way as brawl_legal.
         new(7, "Standard Brawl legality", "ALTER TABLE cards ADD COLUMN standard_brawl_legal INTEGER;"),
+
+        // The card database refreshing itself on a new set (#89): which Scryfall file the cards
+        // came from (NULL until the next import; unknown counts as older than any flag), and the
+        // times that keep every check within its ceiling across restarts. Both are cache.
+        new(8, "Card refresh", """
+            ALTER TABLE card_import_state ADD COLUMN source_updated_at TEXT;
+            CREATE TABLE card_refresh (
+                id                   INTEGER PRIMARY KEY CHECK (id = 1),
+                flag_json            TEXT,
+                flag_read_at         TEXT,
+                scryfall_checked_at  TEXT,
+                scryfall_file_at     TEXT,
+                auto_import_at       TEXT
+            );
+            """),
     ];
 
     public static int Latest => All[^1].Version;

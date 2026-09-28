@@ -12,6 +12,12 @@ internal sealed class ScryfallBulkDataEntry
     /// now published as gzip-compressed JSON Lines (one card object per line).
     /// </summary>
     [JsonPropertyName("jsonl_download_uri")] public string JsonlDownloadUri { get; set; } = "";
+
+    /// <summary>
+    /// When Scryfall generated this file. It changes every 12 hours, prices included, so it
+    /// is no sign of new cards by itself; #89 only asks whether it is later than a given date.
+    /// </summary>
+    [JsonPropertyName("updated_at")] public DateTimeOffset? UpdatedAt { get; set; }
 }
 
 internal sealed class ScryfallBulkDataResponse

@@ -40,6 +40,8 @@ public sealed class AdvisorServices : IAsyncDisposable
     public CreatorVideoService CreatorVideoService { get; }
     public HttpClient CreatorRosterHttpClient { get; }
     public CreatorRosterService CreatorRosterService { get; }
+    public HttpClient CardDataFlagHttpClient { get; }
+    public CardRefreshService CardRefreshService { get; }
 
     private AdvisorServices(AppConfig config)
     {
@@ -70,6 +72,12 @@ public sealed class AdvisorServices : IAsyncDisposable
             new YouTubeFeedClient(YouTubeHttpClient), ArchidektClient, CreatorVideoStore, DeckRankingService);
         CreatorRosterHttpClient = CreatorRosterService.CreateHttpClient();
         CreatorRosterService = new CreatorRosterService(CreatorRosterHttpClient, new CreatorRosterStore(Database));
+
+        // card-data.json comes from GitHub like creators.json; Scryfall's listing through the
+        // importer, whose client already carries the headers Scryfall asks for (#89).
+        CardDataFlagHttpClient = CreatorRosterService.CreateHttpClient();
+        CardRefreshService = new CardRefreshService(
+            CardDataFlagHttpClient, ScryfallBulkImporter, new CardRefreshStore(Database), CardDatabaseStore);
     }
 
     public static async Task<AdvisorServices> CreateAsync(AppConfig config, CancellationToken ct = default)
@@ -86,6 +94,7 @@ public sealed class AdvisorServices : IAsyncDisposable
         ArchidektHttpClient.Dispose();
         YouTubeHttpClient.Dispose();
         CreatorRosterHttpClient.Dispose();
+        CardDataFlagHttpClient.Dispose();
         return ValueTask.CompletedTask;
     }
 }

@@ -12,6 +12,9 @@ namespace MtgaCollectionAdvisor.Core.Cards;
 /// Per Scryfall's guidance, bulk data (not the live per-card API) is the correct way
 /// to obtain the full card database.
 /// </summary>
+/// <summary>Scryfall's "default_cards" file: where to download it, and when it was generated.</summary>
+public sealed record ScryfallBulkFile(string DownloadUri, DateTimeOffset? UpdatedAt);
+
 public sealed class ScryfallBulkImporter(HttpClient httpClient)
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
@@ -25,8 +28,12 @@ public sealed class ScryfallBulkImporter(HttpClient httpClient)
         return client;
     }
 
-    public async IAsyncEnumerable<CardInfo> ImportAsync(
-        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct = default)
+    /// <summary>
+    /// The small /bulk-data call: where today's "default_cards" file is, and when Scryfall
+    /// generated it. An import records that date (#89), so the app knows which file its cards
+    /// came from.
+    /// </summary>
+    public async Task<ScryfallBulkFile> GetDefaultCardsAsync(CancellationToken ct = default)
     {
         var listResponse = await httpClient.GetFromJsonAsync<ScryfallBulkDataResponse>(
             "https://api.scryfall.com/bulk-data", JsonOptions, ct);
@@ -37,7 +44,14 @@ public sealed class ScryfallBulkImporter(HttpClient httpClient)
         if (string.IsNullOrEmpty(defaultCards.JsonlDownloadUri))
             throw new InvalidOperationException("Scryfall bulk-data 'default_cards' entry has no jsonl_download_uri.");
 
-        await using var rawStream = await httpClient.GetStreamAsync(defaultCards.JsonlDownloadUri, ct);
+        return new ScryfallBulkFile(defaultCards.JsonlDownloadUri, defaultCards.UpdatedAt);
+    }
+
+    public async IAsyncEnumerable<CardInfo> ImportAsync(
+        ScryfallBulkFile file,
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct = default)
+    {
+        await using var rawStream = await httpClient.GetStreamAsync(file.DownloadUri, ct);
         await using var gzipStream = new GZipStream(rawStream, CompressionMode.Decompress);
         using var reader = new StreamReader(gzipStream);
 
