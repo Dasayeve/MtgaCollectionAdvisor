@@ -154,6 +154,13 @@ migration.
 next to fetched ones (`archidekt:`). A migration may rebuild the cache tables (`cards`,
 fetched decks' sync state, creator videos) but must carry user rows across.
 
+## Commits, PRs and issues
+
+**Never put a Claude session link (`claude.ai/code/session_...`) in anything on GitHub**: commit
+messages, PR bodies, PR comments, issues, release notes. Only the maintainer can open it, so it
+tells a reader nothing. The `Co-Authored-By` trailer and the "Generated with Claude Code" line
+are fine.
+
 ## Releases
 
 **A release is a pushed `v*` tag**; `.github/workflows/release.yml` tests, publishes, packs
