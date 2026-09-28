@@ -267,6 +267,20 @@ needed; `CreatorRosterTests` fails CI when an entry would be dropped. The compil
 catches up at a release. While the repository is private the raw URL returns 404 and every copy
 uses the compiled list. Only the maintainer curates it: no UI adds channels.
 
+**When a new set reaches Arena, set `refreshCardsAfter` in `card-data.json`** (#89), at the
+repository root: an ISO 8601 UTC time, committed to `master`, no release needed. Each copy
+re-imports its cards once, after Scryfall has a file generated past that time. A test fails CI
+if the file doesn't parse. **Scryfall's file date is no sign of new cards**: `default_cards`
+is regenerated every 12 hours with prices in it, so its `updated_at` changes twice a day;
+it only answers "is there a file newer than X". Each import records the file it used
+(`card_import_state.source_updated_at`), which is what stops a second import for one flag.
+
+**Every network call gets a ceiling per install before it gets code** (#89): how often in the
+worst case (restarts, retries), held across restarts by storing the times, and "no news" on
+failure, never a retry loop. A player's app that meets a provider's rate limit looks broken
+and says nothing. Put the schedule in Core with a test, as `CardRefreshSchedule` and
+`CreatorFeedSchedule` do; gate a large download behind a small check.
+
 **Card images come from Scryfall's image CDN, by URLs stored at import** (#59). The bulk
 file already carries `image_uris`; a double-faced card has none at the top level and one per
 face instead. `*.scryfall.io` has no rate limit, while `api.scryfall.com` does (10/s), so never
