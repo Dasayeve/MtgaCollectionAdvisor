@@ -77,7 +77,8 @@ public sealed class AdvisorServices : IAsyncDisposable
         // importer, whose client already carries the headers Scryfall asks for (#89).
         CardDataFlagHttpClient = CreatorRosterService.CreateHttpClient();
         CardRefreshService = new CardRefreshService(
-            CardDataFlagHttpClient, ScryfallBulkImporter, new CardRefreshStore(Database), CardDatabaseStore);
+            CardDataFlagHttpClient, ScryfallBulkImporter, new CardRefreshStore(Database), CardDatabaseStore,
+            config.CardDataUrlOverride ?? CardDataFlag.RemoteUrl);
     }
 
     public static async Task<AdvisorServices> CreateAsync(AppConfig config, CancellationToken ct = default)

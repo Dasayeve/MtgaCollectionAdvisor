@@ -274,6 +274,9 @@ if the file doesn't parse. **Scryfall's file date is no sign of new cards**: `de
 is regenerated every 12 hours with prices in it, so its `updated_at` changes twice a day;
 it only answers "is there a file newer than X". Each import records the file it used
 (`card_import_state.source_updated_at`), which is what stops a second import for one flag.
+To watch a real refresh without touching `master`, serve a `card-data.json` locally and point
+`MTGA_ADVISOR_CARD_DATA_URL` at it, on a test copy (`MTGA_ADVISOR_DB_PATH`) whose
+`source_updated_at` is set back; the first check runs a minute after start.
 
 **Every network call gets a ceiling per install before it gets code** (#89): how often in the
 worst case (restarts, retries), held across restarts by storing the times, and "no news" on
