@@ -12,8 +12,8 @@ by rarity, and how close you are getting. Standard, Pioneer, Brawl and Standard 
    [latest release](https://github.com/Dasayeve/MtgaCollectionAdvisor/releases/latest) and run it.
    It installs for your user (no administrator rights, no .NET needed) and adds a desktop and
    Start menu shortcut.
-2. **Windows SmartScreen will warn about it**, because the installer isn't code-signed yet.
-   Choose **More info → Run anyway**.
+2. **Windows SmartScreen will warn about it**, because the installer isn't code-signed yet
+   (see [Code signing policy](#code-signing-policy)). Choose **More info → Run anyway**.
 3. In MTG Arena, turn on **Options → Account → Detailed Logs (Plugin Support)**, then restart
    the game. Your wildcard totals and the decks saved in Arena come from that log.
 
@@ -120,6 +120,39 @@ to an installed copy (default port 5199).
 Releases are built by `.github/workflows/release.yml` when a `v*` tag is pushed: it runs the
 tests, publishes a self-contained build, smoke-tests it and packs it with
 [Velopack](https://velopack.io). [RELEASING.md](RELEASING.md) has the steps.
+
+## Privacy
+
+The app has no account, no ads, no analytics and no telemetry. Nothing about you, your
+collection or your decks leaves your PC. It reads the running `MTGA.exe` and Arena's log file
+locally, and its own data stays in `%LOCALAPPDATA%\MtgaCollectionAdvisor`.
+
+It connects to these services by itself, to download public data. None of them receives
+anything about you beyond the requests themselves:
+
+- **Scryfall** (`scryfall.com`): the card database (at the first start, on **Update cards**, and
+  once by itself after an update that needs new card data), and card images when you hover a card.
+- **Archidekt** (`archidekt.com`): public decklists, at the first start and when you fetch decks.
+- **YouTube** (`youtube.com`): the public video feeds of the creators on the Creators tab.
+- **GitHub** (`github.com`): new versions of the app, and the list of creators (`creators.json`).
+
+Clicking **Cotar na Liga Magic** (shown with the Windows region set to Brazil) copies the deck to
+your clipboard and opens Liga Magic's page in your browser; the app sends nothing to it.
+
+## Code signing policy
+
+Windows releases are not signed yet. The project is applying to
+[SignPath Foundation](https://signpath.org)'s free code signing for open source. Once that is in
+place, releases will carry: *Free code signing provided by [SignPath.io](https://signpath.io),
+certificate by [SignPath Foundation](https://signpath.org)*.
+
+Only binaries built from this repository's source by its GitHub Actions release workflow
+(`.github/workflows/release.yml`) are signed, and only for a release the approver starts.
+
+- **Committers and reviewers:** [Dasayeve](https://github.com/Dasayeve). Changes from anyone
+  else are reviewed before they are merged.
+- **Approvers:** [Dasayeve](https://github.com/Dasayeve), who approves each release that is signed.
+- **Privacy:** see [Privacy](#privacy) above.
 
 ## Contributing
 
