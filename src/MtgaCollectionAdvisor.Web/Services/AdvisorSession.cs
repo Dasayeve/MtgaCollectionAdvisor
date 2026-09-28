@@ -191,6 +191,14 @@ public sealed partial class AdvisorSession(AppConfig config, ILogger<AdvisorSess
     public bool IsPinned(string sourceId) => Pins.ContainsKey(sourceId);
 
     /// <summary>
+    /// Why a card name can go unrecognised (#87), for every place that says so. The app can't
+    /// tell these apart, so it names them all - and a new set's cards are the common case.
+    /// </summary>
+    public const string UnrecognisedHint =
+        "Not in the card database: a card from a set that isn't on Arena yet, a name in another " +
+        "language, or a typo. Update cards (under More) picks up new sets once they reach Arena.";
+
+    /// <summary>
     /// The wildcards the deck open in the list needs, so the top bar can show which of the
     /// player's totals fall short of it. Null when no deck is open.
     /// </summary>

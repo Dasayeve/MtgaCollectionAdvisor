@@ -7,8 +7,11 @@
    column of its own, in the same colours and diamond markers as the wildcard totals in
    the topbar. Zeroes stay visible but dimmed: "no mythics needed" is information. *@
 
+@* With unrecognised cards (#87) the total is only a floor: "6+", never the green zero that
+   says there is nothing left to pay. *@
 <span class="wc-cost @(Large ? "large" : "")">
-    <span class="wc-total @(Needed.Total == 0 ? "zero" : "")">@Needed.Total</span>
+    <span class="wc-total @(Needed.Total == 0 && UnrecognisedCopies == 0 ? "zero" : "")"
+          title="@(UnrecognisedCopies > 0 ? $"At least {Needed.Total}: {UnrecognisedCopies} card copies not recognised" : null)">@Needed.Total@(UnrecognisedCopies > 0 ? "+" : "")</span>
 
     <span class="wc-parts">
         <span class="wc-part common @(Needed.Commons > 0 ? "" : "off")" title="@Needed.Commons common">@Needed.Commons</span>
@@ -20,6 +23,9 @@
 
 @code {
     [Parameter, EditorRequired] public WildcardNeed Needed { get; set; } = WildcardNeed.Zero;
+
+    /// <summary>Copies the cost couldn't include (#87); above zero, the total is shown as a floor.</summary>
+    [Parameter] public int UnrecognisedCopies { get; set; }
 
     /// <summary>Larger rendering for the dialog preview, where the cost is the headline.</summary>
     [Parameter] public bool Large { get; set; }

@@ -66,7 +66,7 @@ public static class CreatorVideoFilter
         // Unknown wildcards (#57): filter nothing rather than everything; the UI disables it.
         if (criteria.OnlyCraftable && wallet is not null)
         {
-            query = query.Where(c => c.Analysis?.Needed.IsAffordableWith(wallet) == true);
+            query = query.Where(c => c.Analysis?.IsCraftableWith(wallet) == true);
         }
 
         if (criteria.OnlyAppFormats)
@@ -77,6 +77,8 @@ public static class CreatorVideoFilter
         query = criteria.Sort == CreatorVideoSort.Cheapest
             ? query
                 .OrderBy(c => c.Analysis is null)
+                // A cost with unrecognised cards is only a floor (#87): after every known cost.
+                .ThenBy(c => c.Analysis?.FullyPlayableOnArena == false)
                 .ThenBy(c => c.Analysis?.Needed.Total ?? 0)
                 .ThenByDescending(c => c.Video.Published)
             : query.OrderByDescending(c => c.Video.Published);

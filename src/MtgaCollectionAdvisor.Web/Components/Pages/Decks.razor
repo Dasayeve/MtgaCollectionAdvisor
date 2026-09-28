@@ -317,7 +317,7 @@
                                 @* Only reachable on the My decks tab - Suggested drops these. *@
                                 @if (deck.UnavailableOnArena.Count > 0)
                                 {
-                                    <div class="deck-warning">Not on Arena: @string.Join(", ", deck.UnavailableOnArena)</div>
+                                    <div class="deck-warning" title="@AdvisorSession.UnrecognisedHint">Not recognised: @string.Join(", ", deck.UnavailableOnArena)</div>
                                 }
                                 @if (deck.IllegalInFormat.Count > 0)
                                 {
@@ -326,7 +326,7 @@
                             </td>
                             <td><ManaColors Colors="@deck.Colors" /></td>
                             <td>
-                                <WildcardCost Needed="deck.Needed" />
+                                <WildcardCost Needed="deck.Needed" UnrecognisedCopies="deck.UnrecognisedCopies" />
                             </td>
                             <td class="col-owned">
                                 <div class="owned-cell">
@@ -336,7 +336,12 @@
                             </td>
                             <td>
                                 @* Says why not, so a "no" tells the player what it would take. *@
-                                @if (Session.Collection.Wildcards is not { } wallet)
+                                @if (!deck.FullyPlayableOnArena)
+                                {
+                                    @* #87: with cards the app doesn't know, it can't say. *@
+                                    <span class="verdict unknown" title="@AdvisorSession.UnrecognisedHint">Can't tell: cards not recognised</span>
+                                }
+                                else if (Session.Collection.Wildcards is not { } wallet)
                                 {
                                     <span class="verdict unknown" title="@Session.WildcardHint">Wildcards unknown</span>
                                 }

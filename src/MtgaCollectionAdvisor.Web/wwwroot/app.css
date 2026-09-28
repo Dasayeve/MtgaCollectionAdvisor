@@ -783,6 +783,7 @@ input[type="checkbox"], input[type="range"] { accent-color: var(--text); }
 .card-need.m { color: var(--rarity-mythic); }
 
 .card-have { color: var(--positive); font-size: 12px; font-weight: 700; }
+.card-unknown { color: var(--warning); font-size: 12px; white-space: nowrap; cursor: help; }
 
 .export-area {
     width: 100%;

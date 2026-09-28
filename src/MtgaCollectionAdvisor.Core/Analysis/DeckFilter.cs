@@ -146,17 +146,19 @@ public static class DeckFilter
         // and here it filters nothing rather than everything.
         if (criteria.OnlyCraftable && wallet is not null)
         {
-            query = query.Where(d => d.Needed.IsAffordableWith(wallet));
+            query = query.Where(d => d.IsCraftableWith(wallet));
         }
 
+        // A deck with unrecognised cards has a cost that is only a floor (#87): it can't be
+        // said to fit a budget, so the budgets leave it out.
         if (criteria.MaxWildcards is { } max)
         {
-            query = query.Where(d => d.Needed.Total <= Math.Max(0, max));
+            query = query.Where(d => d.FullyPlayableOnArena && d.Needed.Total <= Math.Max(0, max));
         }
 
         if (!criteria.RarityBudget.IsUnlimited)
         {
-            query = query.Where(d => criteria.RarityBudget.Allows(d.Needed));
+            query = query.Where(d => d.FullyPlayableOnArena && criteria.RarityBudget.Allows(d.Needed));
         }
 
         if (criteria.MinOwnedFraction is { } minOwned)

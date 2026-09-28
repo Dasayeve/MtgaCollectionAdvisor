@@ -36,15 +36,18 @@ public class CreatorVideoPricingTests
         Assert.Equal(Formats.Standard.Key, tie.Key); // ties follow Formats.All, not input order
     }
 
-    internal static DeckAnalysisResult Analysis(int illegal = 0, int rares = 0, int ownedCopies = 0) =>
+    /// <param name="unrecognised">Cards the card database doesn't know (#87), e.g. a list in Portuguese.</param>
+    internal static DeckAnalysisResult Analysis(int illegal = 0, int rares = 0, int ownedCopies = 0, int unrecognised = 0) =>
         new(
             Deck: new CandidateDeck("video:x", "Deck", "", Formats.Standard.Key, 0,
                 [new DeckCardRef("Card", 4, DeckBoard.Main)], DateTimeOffset.UtcNow),
             Needed: new WildcardNeed(0, 0, rares, 0),
             OwnedCopies: ownedCopies,
             TotalCopies: 4,
-            Gaps: [],
-            UnavailableOnArena: [],
+            Gaps: [new CardGap("Card", DeckBoard.Main, 4, ownedCopies, 1, CardRarity.Rare),
+                .. Enumerable.Range(0, unrecognised)
+                    .Select(i => new CardGap($"Carta {i}", DeckBoard.Main, 4, 0, null, CardRarity.Unknown))],
+            UnavailableOnArena: [.. Enumerable.Range(0, unrecognised).Select(i => $"Carta {i}")],
             IllegalInFormat: Enumerable.Range(0, illegal).Select(i => $"Illegal {i}").ToList(),
             Colors: "R");
 }

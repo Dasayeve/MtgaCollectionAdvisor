@@ -155,7 +155,11 @@
                 @gap.CardName
             }
         </span>
-        @if (gap.Missing > 0)
+        @if (!gap.AvailableOnArena)
+        {
+            <span class="card-unknown" title="@AdvisorSession.UnrecognisedHint">not recognised</span>
+        }
+        else if (gap.Missing > 0)
         {
             <span class="card-need @RarityClass(gap.Rarity)">need @gap.Missing</span>
         }

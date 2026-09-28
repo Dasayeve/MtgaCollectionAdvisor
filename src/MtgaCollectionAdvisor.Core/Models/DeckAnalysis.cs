@@ -92,6 +92,25 @@ public sealed record DeckAnalysisResult(
     public bool FullyPlayableOnArena => UnavailableOnArena.Count == 0;
 
     /// <summary>
+    /// Copies of cards the card database doesn't know: not on Arena, misspelt, or written in
+    /// another language (#87) - the app can't tell which. They cost nothing in
+    /// <see cref="Needed"/> because their cost is unknown, so with any of them the cost is a
+    /// floor, and nothing may be claimed about the deck being craftable or legal.
+    /// </summary>
+    public int UnrecognisedCopies => Gaps.Where(g => !g.AvailableOnArena).Sum(g => g.Needed);
+
+    /// <summary>No card of the list was recognised, so the list says nothing at all (#87).</summary>
+    public bool NothingRecognised => Gaps.Count > 0 && Gaps.All(g => !g.AvailableOnArena);
+
+    /// <summary>
+    /// Craftable with these wildcards, known for certain: every card recognised and the need
+    /// covered. The only place the app decides "craftable" (#87); a bare
+    /// <see cref="WildcardNeed.IsAffordableWith"/> called a list of unknown cards craftable.
+    /// </summary>
+    public bool IsCraftableWith(WildcardInventory wallet) =>
+        FullyPlayableOnArena && Needed.IsAffordableWith(wallet);
+
+    /// <summary>
     /// Deck sources let users file a deck under any format they like, so a "Standard"
     /// deck may well contain cards that rotated out years ago.
     /// </summary>

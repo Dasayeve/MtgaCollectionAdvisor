@@ -119,8 +119,11 @@ public sealed record CreatorVideo(
 /// <summary>A video with its price. Analysis is null when its deck could not be read.</summary>
 public sealed record CreatorVideoCard(CreatorVideo Video, FormatDefinition? Format, DeckAnalysisResult? Analysis)
 {
-    /// <summary>Legal in a format the app ranks (Standard or Pioneer).</summary>
-    public bool IsLegalInAppFormat => Analysis is { IllegalInFormat.Count: 0 };
+    /// <summary>
+    /// Legal in a format the app ranks, known for certain: a list with unrecognised cards
+    /// (#87, e.g. written in Portuguese) has no illegal card only because none was read.
+    /// </summary>
+    public bool IsLegalInAppFormat => Analysis is { IllegalInFormat.Count: 0, FullyPlayableOnArena: true };
 }
 
 /// <summary>The cache: what each video's deck is, and when each channel's feed was last asked.</summary>

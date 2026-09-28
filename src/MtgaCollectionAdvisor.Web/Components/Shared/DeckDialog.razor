@@ -129,11 +129,11 @@
                         </span>
                     </div>
 
-                    <WildcardCost Needed="_preview.Needed" Large="true" />
+                    <WildcardCost Needed="_preview.Needed" UnrecognisedCopies="_preview.UnrecognisedCopies" Large="true" />
 
                     @if (_preview.UnavailableOnArena.Count > 0)
                     {
-                        <div class="deck-warning">Not on Arena: @string.Join(", ", _preview.UnavailableOnArena)</div>
+                        <div class="deck-warning" title="@AdvisorSession.UnrecognisedHint">Not recognised: @string.Join(", ", _preview.UnavailableOnArena)</div>
                     }
                     @if (_preview.IllegalInFormat.Count > 0)
                     {

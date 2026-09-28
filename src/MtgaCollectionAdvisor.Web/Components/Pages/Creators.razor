@@ -111,17 +111,33 @@
                         <div class="video-title" title="@video.Title">@video.Title</div>
                         <div class="deck-meta">@video.Creator · @Ago(video.Published)</div>
 
-                        @if (card.Analysis is { } deck)
+                        @if (card.Analysis is { NothingRecognised: true })
+                        {
+                            @* #87: a list in another language, or of cards not on Arena yet: it says
+                               nothing about cost, format or craftability, so neither does the card. *@
+                            <div class="video-deck muted" title="@AdvisorSession.UnrecognisedHint">Deck list not recognised</div>
+                        }
+                        else if (card.Analysis is { } deck)
                         {
                             <div class="video-deck">
-                                <WildcardCost Needed="deck.Needed" />
+                                <WildcardCost Needed="deck.Needed" UnrecognisedCopies="deck.UnrecognisedCopies" />
                                 <span class="owned-value">@deck.OwnedFraction.ToString("P0") owned</span>
                             </div>
+                            @if (deck.UnrecognisedCopies > 0)
+                            {
+                                <div class="deck-warning" title="@AdvisorSession.UnrecognisedHint">
+                                    @deck.UnavailableOnArena.Count card@(deck.UnavailableOnArena.Count == 1 ? "" : "s") not recognised
+                                </div>
+                            }
                             <div class="video-format">
                                 <ManaColors Colors="@deck.Colors" />
                                 @if (card.IsLegalInAppFormat)
                                 {
                                     <span class="format-chip">@card.Format!.DisplayName</span>
+                                }
+                                else if (!deck.FullyPlayableOnArena)
+                                {
+                                    <span class="format-chip off">Format unknown</span>
                                 }
                                 else
                                 {
@@ -130,7 +146,7 @@
                                         Other format
                                     </span>
                                 }
-                                @if (Session.Collection.Wildcards is { } wallet && deck.Needed.IsAffordableWith(wallet))
+                                @if (Session.Collection.Wildcards is { } wallet && deck.IsCraftableWith(wallet))
                                 {
                                     <span class="badge yes">Craftable</span>
                                 }
