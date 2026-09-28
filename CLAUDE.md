@@ -104,6 +104,22 @@ because a `bool` parameter's value is read as C#, but `QuoteStatus="_quoteStatus
 text "_quoteStatus": the button showed the field's name, with no warning. Write
 `QuoteStatus="@_quoteStatus"`.
 
+**Two more places Razor prints code as text, with no warning** (#85). `Deck@SortArrow(x)`,
+right after a word, is read as an e-mail address: the header showed "Deck@SortArrow(...)".
+Write `Deck@(SortArrow(x))`. And an attribute's text is escaped, so `placeholder="a&#10;b"`
+showed `&#10;`: put the string in a C# field with a real `\n`.
+
+**Don't raise `AdvisorSession.Changed` for view state** (#85). `Decks.razor` resets to page 1
+on every `Changed`, so a notification from a click (opening a deck on page 3) sends the list
+back to page 1. View state shared with the layout gets its own event (`OpenDeckChanged`).
+
+**Colours are tokens in `app.css`, defined for both themes** (#85). Colour carries information
+only (rarity, mana, owned or missing, good or bad, pinned); the rest is neutral, and every text
+colour passes WCAG AA in both themes. A new colour is a token with a light and a dark value,
+never a hex value in a rule. The theme is `data-theme` on `<html>`, set by a script in
+`App.razor` before the first paint; the light values are written twice in `app.css`, once for
+the Windows setting and once for the player's pick.
+
 **Windows has two region settings** (#62): the home location ("Country or region",
 `GetUserDefaultGeoName`) and the regional format, the only one `RegionInfo.CurrentRegion`
 follows. They often differ; `WindowsRegion` reads both.
