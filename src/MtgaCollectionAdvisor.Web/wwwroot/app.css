@@ -24,6 +24,8 @@
     --negative: #e98474;
     --warning: #f0954a;
     --pinned: #e8b84a;
+    --fresh: #f5d547;
+    --fresh-glow: rgba(245, 213, 71, 0.55);
 
     /* Wildcards use their in-game rarity colours */
     --rarity-common: #bcc3cc;
@@ -64,6 +66,8 @@
         --negative: #b3392a;
         --warning: #a8480a;
         --pinned: #a36a00;
+        --fresh: #d9ae00;
+        --fresh-glow: rgba(217, 174, 0, 0.45);
         --rarity-common: #5f6670;
         --rarity-uncommon: #23709e;
         --rarity-rare: #8f6a00;
@@ -90,6 +94,8 @@
     --negative: #b3392a;
     --warning: #a8480a;
     --pinned: #a36a00;
+    --fresh: #d9ae00;
+    --fresh-glow: rgba(217, 174, 0, 0.45);
     --rarity-common: #5f6670;
     --rarity-uncommon: #23709e;
     --rarity-rare: #8f6a00;
@@ -367,6 +373,26 @@ input[type="checkbox"], input[type="range"] { accent-color: var(--text); }
 }
 
 @keyframes spin { to { transform: rotate(360deg); } }
+
+/* What's new after an update (#97): a small glowing dot until the player reaches the link. */
+:root[data-release-notes-unseen] .whats-new::after {
+    content: "";
+    display: inline-block;
+    width: 7px;
+    height: 7px;
+    margin-left: 6px;
+    vertical-align: 1px;
+    border-radius: 50%;
+    background: var(--fresh);
+    box-shadow: 0 0 6px 2px var(--fresh-glow);
+    animation: fresh-glow 1.6s ease-in-out infinite;
+}
+
+@keyframes fresh-glow { 50% { box-shadow: 0 0 2px 0 var(--fresh-glow); } }
+
+@media (prefers-reduced-motion: reduce) {
+    :root[data-release-notes-unseen] .whats-new::after { animation: none; }
+}
 
 /* ---------- Layout ---------- */
 

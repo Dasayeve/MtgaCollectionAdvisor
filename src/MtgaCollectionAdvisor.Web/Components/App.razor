@@ -32,6 +32,27 @@
             };
         })();
     </script>
+    @* The What's new link (#97) glows on the first window after an update, until the pointer
+       or the keyboard reaches it; the version it was seen on is kept like the theme. A dev
+       build has no release notes of its own, so it never glows. *@
+    <script>
+        (function () {
+            var root = document.documentElement;
+            var version = "@MtgaCollectionAdvisor.Core.Hosting.AppVersion.Current";
+            if (version === "dev") return;
+            try { if (localStorage.getItem("releaseNotesSeen") === version) return; } catch (e) { }
+            root.dataset.releaseNotesUnseen = "";
+            function seen(e) {
+                if (!e.target.closest || !e.target.closest(".whats-new")) return;
+                delete root.dataset.releaseNotesUnseen;
+                try { localStorage.setItem("releaseNotesSeen", version); } catch (e) { }
+                document.removeEventListener("mouseover", seen);
+                document.removeEventListener("focusin", seen);
+            }
+            document.addEventListener("mouseover", seen);
+            document.addEventListener("focusin", seen);
+        })();
+    </script>
     <ResourcePreloader />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/mana-font@latest/css/mana.css" />
     <link rel="stylesheet" href="@Assets["app.css"]" />
