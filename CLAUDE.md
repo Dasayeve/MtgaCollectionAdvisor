@@ -21,6 +21,16 @@ main menu, and opening the in-game Collection screen. Do not spend time looking 
 Reading process memory (`Core/Memory/`) is the only route. Wildcard totals *are* still in
 `Player.log` and are read from there.
 
+**On macOS the memory is read through Mach** (`ProcessMemoryReader`). `task_for_pid` fails
+unless the app is signed with the `com.apple.security.cs.debugger` entitlement; an ad-hoc
+signature is enough, and the Web csproj re-signs the binary after Build and Publish. The
+user also needs developer tools access (the `_developer` group, which Xcode or its command
+line tools set up, or `DevToolsSecurity -enable`): a correctly signed app failing with Mach
+error 5 is more likely a group problem than a signing problem. Verified only for a
+`_developer` member, with `DevToolsSecurity` disabled; an account outside the group is
+untested. A Mach read fails whole when any page is unreadable, so `ReadPartial` retries page
+by page.
+
 **The decks saved in Arena *are* in `Player.log`**, unlike the collection. They come in the
 `StartHook` login message, which is also the one carrying wildcard totals: `DeckSummaries`
 (name, `Format` attribute, `IsNetDeck`) and `DecksInternal` (cards by grpId per section,
@@ -188,6 +198,11 @@ nothing. Add the schema fixture for the release (see above).
 folder, so uninstalling would delete the player's collection and decks. It is
 `MtgaDeckAdvisor`, and `ReleaseWorkflowTests` holds it there. The same test keeps `vpk` in
 the workflow at the `Velopack` package's version: move both together.
+
+**macOS is packed but never published yet**: `release-macos` packs `osx-arm64` unsigned and keeps
+it as a workflow artifact, on tags too (`ReleaseWorkflowTests` holds that). Publishing needs a
+Developer ID, `--signEntitlements` with the debugger entitlement, notarization, and an upload
+step on tags.
 
 **`VelopackApp.Build().Run()` stays the first statement of `Program.cs`**: the installer
 runs the exe with hook arguments and expects it to exit at once. `vpk pack` warns that it

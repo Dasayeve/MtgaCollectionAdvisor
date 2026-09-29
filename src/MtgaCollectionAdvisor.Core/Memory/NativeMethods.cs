@@ -1,7 +1,9 @@
 using System.Runtime.InteropServices;
+using System.Runtime.Versioning;
 
 namespace MtgaCollectionAdvisor.Core.Memory;
 
+[SupportedOSPlatform("windows")]
 internal static class NativeMethods
 {
     public const int PROCESS_QUERY_INFORMATION = 0x0400;

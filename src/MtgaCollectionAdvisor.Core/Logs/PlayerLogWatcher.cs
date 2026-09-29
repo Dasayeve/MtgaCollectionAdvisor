@@ -3,11 +3,22 @@ using MtgaCollectionAdvisor.Core.Models;
 
 namespace MtgaCollectionAdvisor.Core.Logs;
 
+/// <summary>
+/// Where MTG Arena writes Player.log: <c>%LOCALAPPDATA%\..\LocalLow\Wizards Of The Coast\MTGA</c>
+/// on Windows, <c>~/Library/Logs/Wizards Of The Coast/MTGA</c> on macOS.
+/// <c>MTGA_ADVISOR_PLAYERLOG_PATH</c> overrides it.
+/// </summary>
 public static class PlayerLogPaths
 {
-    public static string DefaultPath => Path.Combine(
+    public static string DefaultPath => For(
+        OperatingSystem.IsMacOS(),
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "..", "LocalLow", "Wizards Of The Coast", "MTGA", "Player.log");
+        Environment.GetFolderPath(Environment.SpecialFolder.UserProfile));
+
+    /// <summary>The path for an OS from its base folders; pure, so tests can pin each shape.</summary>
+    public static string For(bool isMacOS, string localApplicationData, string userHome) => isMacOS
+        ? Path.Combine(userHome, "Library", "Logs", "Wizards Of The Coast", "MTGA", "Player.log")
+        : Path.Combine(localApplicationData, "..", "LocalLow", "Wizards Of The Coast", "MTGA", "Player.log");
 }
 
 /// <summary>

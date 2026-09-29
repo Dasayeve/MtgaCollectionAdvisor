@@ -8,7 +8,10 @@ public sealed class LogFilesTests
     [Fact]
     public void FolderFor_Should_BeLogsNextToTheDatabase()
     {
-        Assert.Equal(Path.Combine(@"C:\x", "logs"), LogFiles.FolderFor(@"C:\x\advisor.db"));
+        // A folder that is absolute on the running OS: "C:\x" is only a relative file name on macOS.
+        var folder = Path.Combine(Path.GetTempPath(), "x");
+
+        Assert.Equal(Path.Combine(folder, "logs"), LogFiles.FolderFor(Path.Combine(folder, "advisor.db")));
     }
 
     [Fact]

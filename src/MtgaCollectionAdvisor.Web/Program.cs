@@ -24,7 +24,7 @@ var openWindow = !args.Contains("--no-browser");
 // than failing to bind the port.
 if (await IsAlreadyRunningAsync(appUrl))
 {
-    if (openWindow) LaunchUi(appUrl);
+    if (openWindow) AppWindowLaunch.Open(appUrl);
     return;
 }
 
@@ -92,7 +92,7 @@ await app.Services.GetRequiredService<AdvisorSession>().InitializeAsync();
 
 if (openWindow)
 {
-    _ = Task.Run(() => LaunchUi(appUrl));
+    _ = Task.Run(() => AppWindowLaunch.Open(appUrl));
 }
 
 var updater = app.Services.GetRequiredService<AppUpdater>();
@@ -125,28 +125,4 @@ static async Task<bool> IsAlreadyRunningAsync(string appUrl)
     {
         return false;
     }
-}
-
-// Chromium's --app mode gives a plain window with no address bar or tabs, so the tool
-// feels like a desktop app. Falls back to the default browser when neither is present.
-static void LaunchUi(string url)
-{
-    foreach (var browser in (string[])["msedge", "chrome"])
-    {
-        try
-        {
-            var process = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(browser)
-            {
-                UseShellExecute = true,
-                Arguments = $"--app={url} --window-size=1500,950"
-            });
-            if (process is not null) return;
-        }
-        catch
-        {
-            // Browser not installed - try the next one.
-        }
-    }
-
-    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(url) { UseShellExecute = true });
 }

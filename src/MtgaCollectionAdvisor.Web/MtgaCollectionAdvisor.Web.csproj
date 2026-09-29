@@ -25,4 +25,21 @@
     <_UseWindowsGraphicalUserInterface>true</_UseWindowsGraphicalUserInterface>
   </PropertyGroup>
 
+  <!-- macOS: task_for_pid refuses a binary not signed with the com.apple.security.cs.debugger
+       entitlement. The SDK signs the apphost and the published binary without it, so both are
+       re-signed here (ad-hoc is enough locally; a signed release passes the plist to vpk). -->
+  <PropertyGroup>
+    <MacEntitlementsFile>$(MSBuildProjectDirectory)/Entitlements.plist</MacEntitlementsFile>
+  </PropertyGroup>
+
+  <Target Name="SignMacAppHost" AfterTargets="Build" Condition="$([MSBuild]::IsOSPlatform('OSX'))">
+    <Exec Condition="Exists('$(TargetDir)$(AssemblyName)')"
+          Command="codesign -s - -f --entitlements &quot;$(MacEntitlementsFile)&quot; &quot;$(TargetDir)$(AssemblyName)&quot;" />
+  </Target>
+
+  <Target Name="SignMacPublishedApp" AfterTargets="Publish" Condition="$([MSBuild]::IsOSPlatform('OSX'))">
+    <Exec Condition="Exists('$(PublishDir)$(AssemblyName)')"
+          Command="codesign -s - -f --entitlements &quot;$(MacEntitlementsFile)&quot; &quot;$(PublishDir)$(AssemblyName)&quot;" />
+  </Target>
+
 </Project>

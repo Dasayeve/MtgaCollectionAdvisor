@@ -17,8 +17,22 @@ jobs:
     # The job name is the status check the master ruleset requires; renaming it
     # blocks every pull request until the ruleset is updated to match.
     name: build-and-test
-    # The memory scanner uses Windows APIs, so build and test where the app runs.
+    # The memory scanner uses the platform's APIs, so build and test where the app runs.
     runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+
+      - run: dotnet build MtgaCollectionAdvisor.slnx --configuration Release
+
+      - run: dotnet test MtgaCollectionAdvisor.slnx --configuration Release --no-build
+
+  build-and-test-macos:
+    runs-on: macos-latest
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v5

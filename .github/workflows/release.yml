@@ -13,15 +13,16 @@ on:
 permissions:
   contents: write
 
+env:
+  # Must equal the Velopack package version in MtgaCollectionAdvisor.Web.csproj
+  # (ReleaseWorkflowTests): the installer and the in-app updater move together.
+  VPK_VERSION: 1.2.158
+  REPO_URL: https://github.com/${{ github.repository }}
+
 jobs:
   release:
     runs-on: windows-latest
     timeout-minutes: 30
-    env:
-      # Must equal the Velopack package version in MtgaCollectionAdvisor.Web.csproj
-      # (ReleaseWorkflowTests): the installer and the in-app updater move together.
-      VPK_VERSION: 1.2.158
-      REPO_URL: https://github.com/${{ github.repository }}
     steps:
       - uses: actions/checkout@v5
 
@@ -131,3 +132,91 @@ jobs:
           notes=$(gh api -X POST "repos/${{ github.repository }}/releases/generate-notes" -f tag_name="$GITHUB_REF_NAME" --jq .body)
           printf '%s\n\n## SHA-256\n\n```\n%s\n```\n' "$notes" "$(cat Releases/SHA256SUMS.txt)" > notes.md
           gh release edit "$GITHUB_REF_NAME" --notes-file notes.md --repo "${{ github.repository }}"
+
+  # Artifact only, on tags too: with no Apple signing identity an unsigned .pkg is refused by
+  # Gatekeeper (ReleaseWorkflowTests holds this). To publish, sign in Pack (--signAppIdentity,
+  # --signEntitlements with the debugger entitlement, --notaryProfile) and upload on tags.
+  release-macos:
+    runs-on: macos-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Version
+        shell: bash
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+          else
+            echo "VERSION=0.0.${GITHUB_RUN_NUMBER}-dryrun" >> "$GITHUB_ENV"  # vpk refuses versions below 0.0.1
+          fi
+
+      - run: dotnet test MtgaCollectionAdvisor.slnx --configuration Release
+
+      - name: Publish (macOS)
+        shell: bash
+        run: |
+          dotnet publish src/MtgaCollectionAdvisor.Web -c Release -r osx-arm64 --self-contained \
+            -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true \
+            -p:DebugType=None -p:Version="$VERSION" -o publish-out
+          rm -f publish-out/appsettings.Development.json
+
+      - name: Smoke test (macOS)
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/smoke"
+          MTGA_ADVISOR_PORT=5299 MTGA_ADVISOR_DB_PATH="$RUNNER_TEMP/smoke/advisor.db" \
+            ./publish-out/MtgaCollectionAdvisor.Web --no-browser &
+          app=$!
+          trap 'kill -9 $app 2>/dev/null || true' EXIT
+          up=false
+          for i in $(seq 1 60); do
+            if curl -s -o /dev/null http://localhost:5299/; then up=true; break; fi
+            sleep 2
+          done
+          if [ "$up" != true ]; then echo "The published app did not answer on port 5299."; exit 1; fi
+          for path in / /_framework/blazor.web.js /app.css; do
+            status=$(curl -s -o /dev/null -w '%{http_code}' "http://localhost:5299$path")
+            echo "GET $path -> $status"
+            if [ "$status" != 200 ]; then echo "GET $path returned $status."; exit 1; fi
+          done
+
+      - name: Icon (macOS)
+        shell: bash
+        run: |
+          src=src/MtgaCollectionAdvisor.Web/wwwroot/icon-512.png
+          mkdir -p app.iconset
+          for s in 16 32 128 256 512; do
+            sips -z $s $s "$src" --out "app.iconset/icon_${s}x${s}.png" > /dev/null
+            if [ $((s * 2)) -le 512 ]; then
+              sips -z $((s * 2)) $((s * 2)) "$src" --out "app.iconset/icon_${s}x${s}@2x.png" > /dev/null
+            fi
+          done
+          iconutil -c icns app.iconset -o app.icns
+
+      - name: Install vpk (macOS)
+        shell: bash
+        run: |
+          dotnet tool install -g vpk --version "$VPK_VERSION"
+          echo "$HOME/.dotnet/tools" >> "$GITHUB_PATH"
+
+      - name: Pack (macOS)
+        shell: bash
+        run: |
+          vpk pack --packId MtgaDeckAdvisor --packVersion "$VERSION" --packDir publish-out \
+            --mainExe MtgaCollectionAdvisor.Web --packTitle "MTGA Deck Advisor" \
+            --packAuthors "Dasayeve" --bundleId com.dasayeve.mtgadeckadvisor --icon app.icns \
+            --runtime osx-arm64 -o Releases-macos
+          ls -l Releases-macos
+
+      - name: macOS artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-macos
+          path: Releases-macos/

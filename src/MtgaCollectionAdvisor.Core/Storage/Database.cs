@@ -31,12 +31,16 @@ public sealed class Database(string filePath)
         return connection;
     }
 
-    public static Database CreateDefault(string? overridePath = null)
-    {
-        var path = overridePath ?? Path.Combine(
+    /// <summary>The default database path, without creating its folder.</summary>
+    public static string DefaultPath(string? overridePath = null) =>
+        overridePath ?? Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             DataFolderName,
             "advisor.db");
+
+    public static Database CreateDefault(string? overridePath = null)
+    {
+        var path = DefaultPath(overridePath);
 
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         return new Database(path);

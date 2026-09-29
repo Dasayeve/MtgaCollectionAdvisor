@@ -669,16 +669,36 @@ public sealed partial class AdvisorSession(AppConfig config, ILogger<AdvisorSess
 
     private void Notify() => Changed?.Invoke();
 
-    /// <summary>The folder with the app's log files (#52), next to the database.</summary>
-    public string LogFolder => LogFiles.FolderFor(services?.Database.FilePath
-        ?? Database.CreateDefault(config.DatabasePathOverride).FilePath);
+    /// <summary>The database file, as shown to the player; it depends on the OS.</summary>
+    public string DatabasePath => services?.Database.FilePath
+        ?? Database.DefaultPath(config.DatabasePathOverride);
 
-    /// <summary>Opens the log folder in Explorer; the app runs locally, as the player.</summary>
+    /// <summary>The folder with the app's log files (#52), next to the database.</summary>
+    public string LogFolder => LogFiles.FolderFor(DatabasePath);
+
+    /// <summary>Opens the log folder in Explorer or Finder; the app runs locally, as the player.</summary>
     public void OpenLogFolder()
     {
-        var folder = LogFolder;
-        Directory.CreateDirectory(folder);
-        System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("explorer.exe", $"\"{folder}\"") { UseShellExecute = true });
+        try
+        {
+            var folder = LogFolder;
+            Directory.CreateDirectory(folder);
+            System.Diagnostics.ProcessStartInfo start;
+            if (OperatingSystem.IsWindows())
+            {
+                start = new System.Diagnostics.ProcessStartInfo("explorer.exe", $"\"{folder}\"") { UseShellExecute = true };
+            }
+            else
+            {
+                // On macOS this is `open <folder>`, which shows it in Finder.
+                start = new System.Diagnostics.ProcessStartInfo(folder) { UseShellExecute = true };
+            }
+            System.Diagnostics.Process.Start(start)?.Dispose();
+        }
+        catch (Exception ex)
+        {
+            log.LogWarning(ex, "Opening the log folder failed");
+        }
     }
 
     /// <summary>

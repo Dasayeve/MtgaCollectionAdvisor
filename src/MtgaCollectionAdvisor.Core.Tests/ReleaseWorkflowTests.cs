@@ -13,15 +13,19 @@ public sealed class ReleaseWorkflowTests
     private static readonly string Root = FindRepositoryRoot();
     private static readonly string Workflow = File.ReadAllText(Path.Combine(Root, ".github", "workflows", "release.yml"));
 
+    /// <summary>The workflow without its comment lines.</summary>
+    private static readonly string WorkflowCode = Regex.Replace(Workflow, @"(?m)^\s*#.*$", "");
+
     // Velopack installs to %LOCALAPPDATA%\<packId> and deletes that folder on uninstall; with
     // the data folder's name, uninstalling would take the player's collection and decks with it.
     [Fact]
     public void ReleaseWorkflow_PackId_Should_DifferFromDataFolder()
     {
-        var packId = Regex.Match(Workflow, @"--packId\s+(\S+)");
+        var packs = Regex.Matches(WorkflowCode, @"vpk pack\b[^\n]*(?:\\\r?\n[^\n]*)*");
 
-        Assert.True(packId.Success, "release.yml has no --packId.");
-        Assert.NotEqual(Database.DataFolderName, packId.Groups[1].Value, StringComparer.OrdinalIgnoreCase);
+        Assert.True(packs.Count >= 2, "Both release jobs must run vpk pack.");
+        Assert.All(packs, pack => Assert.Matches(@"--packId\s+MtgaDeckAdvisor\b", pack.Value));
+        Assert.NotEqual(Database.DataFolderName, "MtgaDeckAdvisor");
     }
 
     [Fact]
@@ -32,7 +36,7 @@ public sealed class ReleaseWorkflowTests
         var vpk = Regex.Match(Workflow, @"VPK_VERSION:\s*(\S+)");
 
         Assert.True(package.Success, "The Web project has no Velopack package reference.");
-        Assert.True(vpk.Success, "release.yml sets no VPK_VERSION.");
+        Assert.True(vpk.Success, "The workflow does not set VPK_VERSION.");
         Assert.Equal(package.Groups[1].Value, vpk.Groups[1].Value);
     }
 
@@ -40,11 +44,27 @@ public sealed class ReleaseWorkflowTests
     [Fact]
     public void ReleaseWorkflow_Should_OnlyUploadFromTags()
     {
-        var steps = Regex.Split(Workflow, @"\r?\n\s*- (?=name:|uses:|run:)");
+        var steps = Regex.Split(WorkflowCode, @"\r?\n\s*- (?=name:|uses:|run:)");
         var publishing = steps.Where(s => Regex.IsMatch(s, @"vpk (upload|download) github|gh release")).ToList();
 
         Assert.NotEmpty(publishing);
         Assert.All(publishing, step => Assert.Matches(@"if:.*startsWith\(github\.ref, 'refs/tags/v'\)", step));
+    }
+
+    // Unsigned, so an artifact only; the change that signs it rewrites this guard.
+    [Fact]
+    public void ReleaseWorkflow_MacosJob_Should_PublishNothing()
+    {
+        var start = WorkflowCode.IndexOf("\n  release-macos:", StringComparison.Ordinal);
+        Assert.True(start >= 0, "release.yml has no release-macos job.");
+        var next = Regex.Match(WorkflowCode[(start + 1)..], @"\n  [\w-]+:\s*\n");
+        var job = next.Success ? WorkflowCode.Substring(start + 1, next.Index) : WorkflowCode[(start + 1)..];
+
+        Assert.Contains("--runtime osx-arm64", job);
+        Assert.Contains("actions/upload-artifact", job);
+        Assert.DoesNotMatch(@"vpk (upload|download)\b", job);
+        Assert.DoesNotMatch(@"\bgh release\b", job);
+        Assert.DoesNotContain("GITHUB_TOKEN", job);
     }
 
     // The console is hidden by a flag the release passes, never by WinExe: a WinExe build
