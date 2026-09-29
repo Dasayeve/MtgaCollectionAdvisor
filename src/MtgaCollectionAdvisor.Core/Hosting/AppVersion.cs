@@ -24,4 +24,10 @@ public static class AppVersion
         var version = informationalVersion.Split('+', 2)[0].Trim();
         return version is "" or SdkDefault ? Development : version;
     }
+
+    private const string Releases = "https://github.com/Dasayeve/MtgaCollectionAdvisor/releases";
+
+    /// <summary>The release notes of <paramref name="version"/> (#97); a dev build gets the list of releases.</summary>
+    public static string ReleaseNotesUrl(string version) =>
+        version == Development ? Releases : $"{Releases}/tag/v{version}";
 }

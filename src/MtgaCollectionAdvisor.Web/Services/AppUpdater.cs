@@ -29,6 +29,8 @@ public sealed class AppUpdater
 
     public string CurrentVersion => AppVersion.Current;
 
+    public string ReleaseNotesUrl => AppVersion.ReleaseNotesUrl(CurrentVersion);
+
     /// <summary>The version downloaded and waiting to be applied, if any.</summary>
     public string? ReadyVersion => _ready?.Version.ToString();
 

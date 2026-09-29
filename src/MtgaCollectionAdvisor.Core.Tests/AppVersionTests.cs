@@ -23,4 +23,16 @@ public sealed class AppVersionTests
     {
         Assert.Equal("dev", AppVersion.Display(informationalVersion));
     }
+
+    [Fact]
+    public void ReleaseNotesUrl_Should_PointAtTheVersionsRelease()
+    {
+        Assert.Equal("https://github.com/Dasayeve/MtgaCollectionAdvisor/releases/tag/v0.5.0", AppVersion.ReleaseNotesUrl("0.5.0"));
+    }
+
+    [Fact]
+    public void ReleaseNotesUrl_Should_PointAtAllReleases_When_Dev()
+    {
+        Assert.Equal("https://github.com/Dasayeve/MtgaCollectionAdvisor/releases", AppVersion.ReleaseNotesUrl("dev"));
+    }
 }
