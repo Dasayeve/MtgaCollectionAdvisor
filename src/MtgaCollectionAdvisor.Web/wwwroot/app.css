@@ -22,7 +22,7 @@
 
     --positive: #7fc893;
     --negative: #e98474;
-    --warning: #e2b35a;
+    --warning: #f0954a;
     --pinned: #e8b84a;
 
     /* Wildcards use their in-game rarity colours */
@@ -62,7 +62,7 @@
         --on-primary: #fbfaf7;
         --positive: #1f7a3f;
         --negative: #b3392a;
-        --warning: #8a5a00;
+        --warning: #a8480a;
         --pinned: #a36a00;
         --rarity-common: #5f6670;
         --rarity-uncommon: #23709e;
@@ -88,7 +88,7 @@
     --on-primary: #fbfaf7;
     --positive: #1f7a3f;
     --negative: #b3392a;
-    --warning: #8a5a00;
+    --warning: #a8480a;
     --pinned: #a36a00;
     --rarity-common: #5f6670;
     --rarity-uncommon: #23709e;
@@ -343,7 +343,8 @@ input[type="checkbox"], input[type="range"] { accent-color: var(--text); }
 }
 
 .status-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.status-text.error { color: var(--negative); font-weight: 600; }
+/* Something the player can act on; the rest of the bar stays quiet. */
+.status-text.warning { color: var(--warning); font-weight: 600; }
 
 .status-links { display: flex; align-items: center; gap: var(--space-4); }
 .status-links a { text-decoration: none; }

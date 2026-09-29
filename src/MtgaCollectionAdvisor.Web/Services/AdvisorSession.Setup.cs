@@ -122,7 +122,8 @@ public sealed partial class AdvisorSession
         };
         PublishSetup();
 
-        void Report(string message)
+        // The setup shows a step's trouble by its state (Failed), not by the message's level.
+        void Report(string message, StatusLevel level)
         {
             _setupMessage = message;
             PublishSetup();
@@ -231,7 +232,7 @@ public sealed partial class AdvisorSession
         bool found;
         try
         {
-            found = await CaptureAsync(message =>
+            found = await CaptureAsync((message, _) =>
             {
                 _setupMessage = message;
                 PublishSetup();

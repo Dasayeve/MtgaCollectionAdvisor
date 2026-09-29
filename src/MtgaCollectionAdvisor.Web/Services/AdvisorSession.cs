@@ -37,14 +37,14 @@ public sealed partial class AdvisorSession(AppConfig config, ILogger<AdvisorSess
         private set
         {
             _status = value;
-            StatusIsError = false; // any new message replaces a failure
+            StatusLevel = StatusLevel.Info; // any new message replaces a warning
         }
     }
 
     private string _status = "Ready.";
 
-    /// <summary>True while the status bar shows a failure, so it can be told apart from "Ready.".</summary>
-    public bool StatusIsError { get; private set; }
+    /// <summary>Whether the status bar shows something the player should act on.</summary>
+    public StatusLevel StatusLevel { get; private set; }
 
     public bool IsBusy { get; private set; }
     public string? BusyOperation { get; private set; }
@@ -66,7 +66,7 @@ public sealed partial class AdvisorSession(AppConfig config, ILogger<AdvisorSess
             log.LogError(ex, "Could not open the local database");
             StartupError = $"Could not open the local database: {ex.Message}";
             Status = StartupError;
-            StatusIsError = true;
+            StatusLevel = StatusLevel.Warning;
             Notify();
             return;
         }
@@ -158,12 +158,12 @@ public sealed partial class AdvisorSession(AppConfig config, ILogger<AdvisorSess
     // know whether each one worked rather than only what it said in the status bar.
 
     /// <summary>False when the collection was not found in MTG Arena's memory.</summary>
-    private async Task<bool> CaptureAsync(Action<string> report)
+    private async Task<bool> CaptureAsync(StatusReport report)
     {
-        var result = await services.MemoryCollectionSyncService.SyncAutomaticallyAsync(new Progress<string>(report));
+        var result = await services.MemoryCollectionSyncService.SyncAutomaticallyAsync(new Progress<string>(message => report(message)));
         if (result is null)
         {
-            report("Could not find the collection in memory. Open MTG Arena and visit the Collection screen.");
+            report("Could not find the collection in memory. Open MTG Arena and visit the Collection screen.", StatusLevel.Warning);
             return false;
         }
         report($"Collection captured: {result.DistinctCards} cards ({result.TotalCopies} copies).");
@@ -171,9 +171,9 @@ public sealed partial class AdvisorSession(AppConfig config, ILogger<AdvisorSess
         return true;
     }
 
-    private async Task<DeckSyncReport> FetchDecksAsync(FormatDefinition format, Action<string> report)
+    private async Task<DeckSyncReport> FetchDecksAsync(FormatDefinition format, StatusReport report)
     {
-        var result = await services.ArchidektDeckSync.SyncAsync(format, new ImmediateProgress(report));
+        var result = await services.ArchidektDeckSync.SyncAsync(format, new ImmediateProgress(message => report(message)));
         if (result.StoppedBecause is not null)
         {
             log.LogWarning("Archidekt fetch for {Format} stopped early: {Reason} ({Cause})",
@@ -184,7 +184,7 @@ public sealed partial class AdvisorSession(AppConfig config, ILogger<AdvisorSess
         return result;
     }
 
-    private async Task ImportCardsAsync(Action<string> report)
+    private async Task ImportCardsAsync(StatusReport report)
     {
         report("Downloading Scryfall bulk data (a few minutes)...");
         // Records which Scryfall file the cards came from: every import, manual or not, is what
@@ -362,7 +362,7 @@ public sealed partial class AdvisorSession(AppConfig config, ILogger<AdvisorSess
         return RunAsync("Loading creator videos", report => LoadCreatorsAsync(force, report));
     }
 
-    private async Task LoadCreatorsAsync(bool force, Action<string> report)
+    private async Task LoadCreatorsAsync(bool force, StatusReport report)
     {
         var roster = await services.CreatorRosterService.LoadAsync();
         CreatorChannelList = roster.Channels;
@@ -406,7 +406,7 @@ public sealed partial class AdvisorSession(AppConfig config, ILogger<AdvisorSess
             var cards = ArenaDeckListParser.Parse(decklist);
             if (cards.Count == 0)
             {
-                report("No cards recognised in that text.");
+                report("No cards recognised in that text.", StatusLevel.Warning);
                 return;
             }
 
@@ -441,7 +441,7 @@ public sealed partial class AdvisorSession(AppConfig config, ILogger<AdvisorSess
             if (cards.Count == 0)
             {
                 // Abort before writing: a typo must not empty a deck the user already has.
-                report("No cards recognised in that text - the deck was left unchanged.");
+                report("No cards recognised in that text - the deck was left unchanged.", StatusLevel.Warning);
                 return;
             }
 
@@ -628,7 +628,7 @@ public sealed partial class AdvisorSession(AppConfig config, ILogger<AdvisorSess
         });
     }
 
-    private async Task RunAsync(string operation, Func<Action<string>, Task> action)
+    private async Task RunAsync(string operation, Func<StatusReport, Task> action)
     {
         if (!await _operationGate.WaitAsync(0))
         {
@@ -644,9 +644,10 @@ public sealed partial class AdvisorSession(AppConfig config, ILogger<AdvisorSess
 
         try
         {
-            await action(message =>
+            await action((message, level) =>
             {
                 Status = message;
+                StatusLevel = level;
                 Notify();
             });
         }
@@ -655,7 +656,7 @@ public sealed partial class AdvisorSession(AppConfig config, ILogger<AdvisorSess
             // Shown in the status bar, and kept in the log file (#52) for when a player reports it.
             log.LogError(ex, "{Operation} failed", operation);
             Status = $"{operation} failed: {ex.Message}";
-            StatusIsError = true;
+            StatusLevel = StatusLevel.Warning;
         }
         finally
         {

@@ -126,7 +126,7 @@ else
             {
                 <span class="spinner" aria-hidden="true"></span>
             }
-            <span class="status-text @(Session.StatusIsError ? "error" : "")">@Session.Status</span>
+            <span class="status-text @(Session.StatusLevel == StatusLevel.Warning ? "warning" : "")">@Session.Status</span>
 
             @if (Updater.ReadyVersion is { } ready)
             {
