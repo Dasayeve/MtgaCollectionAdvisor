@@ -3,6 +3,7 @@
 .components-reconnect-failed-visible,
 .components-pause-visible,
 .components-resume-failed-visible,
+.components-stopped-visible,
 .components-rejoining-animation {
     display: none;
 }
@@ -17,6 +18,15 @@
 #components-reconnect-modal.components-reconnect-failed,
 #components-reconnect-modal.components-reconnect-failed .components-reconnect-failed-visible {
     display: block;
+}
+
+/* The app itself is gone (#99): say so, and nothing else - no countdown, no retry button. */
+#components-reconnect-modal.components-reconnect-stopped .components-stopped-visible {
+    display: block;
+}
+
+#components-reconnect-modal.components-reconnect-stopped :is(.components-reconnect-first-attempt-visible, .components-reconnect-repeated-attempt-visible, .components-reconnect-failed-visible, .components-pause-visible, .components-resume-failed-visible, .components-rejoining-animation) {
+    display: none;
 }
 
 

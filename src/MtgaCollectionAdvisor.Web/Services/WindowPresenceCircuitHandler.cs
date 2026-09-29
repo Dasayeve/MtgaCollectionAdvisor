@@ -5,7 +5,7 @@ namespace MtgaCollectionAdvisor.Web.Services;
 
 /// <summary>
 /// Tells <see cref="WindowPresence"/> when a window attaches and detaches. Connections, not
-/// circuits: a closed window's circuit is kept for minutes in case it reconnects, so
+/// circuits: a closed window's circuit is kept for hours in case it reconnects (#99), so
 /// circuit-closed fires far too late to mean "the window is gone".
 /// </summary>
 public sealed class WindowPresenceCircuitHandler(WindowPresence presence) : CircuitHandler

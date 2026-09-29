@@ -45,8 +45,12 @@ builder.Logging.AddFilter<FileLoggerProvider>(LogFiles.StartupCategory, LogLevel
 
 builder.WebHost.UseUrls(appUrl);
 
+// A window the browser froze while hidden (behind MTG Arena, minimised) drops its connection and
+// wakes up much later (#99). Its circuit is kept as long as the app waits for it, so it resumes
+// where it was, and the timeouts outlast a throttled page's once-a-minute timers.
 builder.Services.AddRazorComponents()
-    .AddInteractiveServerComponents();
+    .AddInteractiveServerComponents(options => options.DisconnectedCircuitRetentionPeriod = WindowPresence.DefaultSleepLimit)
+    .AddHubOptions(options => options.ClientTimeoutInterval = TimeSpan.FromMinutes(3));
 
 // Features:CreatorVideos in appsettings.json (or Features__CreatorVideos in the
 // environment). Absent means off, so a release never gains the tab by accident.
@@ -76,6 +80,21 @@ app.UseAntiforgery();
 app.MapStaticAssets();
 app.MapRazorComponents<App>().AddInteractiveServerRenderMode();
 app.MapGet("/instance", () => InstanceMarker);
+
+// Each page reports whether it is visible, hidden or closing (#99), so a frozen window is told
+// apart from a closed one. A beacon can't stop a connected app, so any page may send one.
+app.MapPost("/window/{id}/{state}", (string id, string state, WindowPresence presence) =>
+{
+    // Names only: Enum.TryParse would also take "1" for Hidden.
+    if (!WindowPresence.IsValidWindowId(id) || !state.All(char.IsAsciiLetter)
+        || !Enum.TryParse<WindowState>(state, ignoreCase: true, out var parsed))
+    {
+        return Results.BadRequest();
+    }
+
+    presence.Reported(id, parsed, DateTimeOffset.UtcNow);
+    return Results.NoContent();
+});
 
 // Downloads for the Export menu. Plain links with a download attribute, which Blazor
 // leaves to the browser rather than routing.
