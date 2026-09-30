@@ -103,6 +103,26 @@ public sealed class CardSourceMergeTests
     }
 
     [Fact]
+    public void An_Arena_only_card_of_a_set_Scryfall_lists_no_Arena_prints_for_is_legal_nowhere()
+    {
+        // Arena's file keeps old cards under codes Scryfall never gave Arena ids (Lotus Petal
+        // under TMP): not a new set, so never Standard-legal (found in the v0.7.0 smoke test).
+        var merge = CardSourceMerge.Merge([Sheoldred], FraPrints, [Arena(9475, "Lotus Petal", "TMP", "294")]);
+
+        var petal = merge.Cards.Single(c => c.GrpId == 9475);
+        Assert.False(petal.StandardLegal || petal.PioneerLegal || petal.BrawlLegal || petal.StandardBrawlLegal);
+    }
+
+    [Fact]
+    public void An_Arena_only_card_of_a_set_nobody_lists_is_legal_nowhere()
+    {
+        var merge = CardSourceMerge.Merge([Sheoldred], new Dictionary<(string, string), IReadOnlyList<CardInfo>>(),
+            [Arena(106500, "Fracture Bolt", "FRA", "150")]);
+
+        Assert.False(merge.Cards.Single(c => c.GrpId == 106500).StandardLegal);
+    }
+
+    [Fact]
     public void Each_path_is_counted()
     {
         var merge = CardSourceMerge.Merge([Sheoldred], FraPrints,

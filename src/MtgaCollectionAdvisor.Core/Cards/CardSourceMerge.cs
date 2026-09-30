@@ -15,9 +15,10 @@ public sealed record CardMerge(IReadOnlyList<CardInfo> Cards, CardMergeCounts Co
 /// <item>An Arena card Scryfall has no id for takes the Scryfall print with the same set,
 /// collector number and name: its legality, images and name, under Arena's id.</item>
 /// <item>An Arena card Scryfall lacks is built from Arena's file, with no image. It is legal in
-/// every format only when it is a paper card of a set nothing else knows yet; an old set's
-/// missing card, a digital-only or a rebalanced one is legal nowhere. This lasts until
-/// Scryfall catches up: the next import replaces it.</item>
+/// every format only when it is a paper card of a set being released: Scryfall lists the set's
+/// Arena prints, none with an id yet. Any other set's missing card (Arena keeps old cards under
+/// codes such as TMP or BOK that Scryfall never gave Arena ids), a digital-only or a rebalanced
+/// one, is legal nowhere. This lasts until Scryfall catches up: the next import replaces it.</item>
 /// </list>
 /// </summary>
 public static class CardSourceMerge
@@ -41,6 +42,11 @@ public static class CardSourceMerge
             .Concat(arena.Where(c => known.Contains(c.GrpId)).Select(c => c.SetCode.ToLowerInvariant()))
             .ToHashSet();
 
+        // A set being released: Scryfall already lists its Arena prints, without ids. Only these
+        // are assumed legal. A set nobody lists that way is not new: Arena's file holds old cards
+        // (Lotus Petal under TMP, Umezawa's Jitte under BOK) that must never read as Standard-legal.
+        var releasingSets = scryfallWithoutId.Keys.Select(k => k.Set).ToHashSet();
+
         int matched = 0, arenaOnly = 0;
         foreach (var card in arena)
         {
@@ -53,7 +59,8 @@ public static class CardSourceMerge
             }
             else
             {
-                var legal = !card.IsDigitalOnly && !card.IsRebalanced && !knownSets.Contains(card.SetCode.ToLowerInvariant());
+                var set = card.SetCode.ToLowerInvariant();
+                var legal = !card.IsDigitalOnly && !card.IsRebalanced && !knownSets.Contains(set) && releasingSets.Contains(set);
                 cards.Add(new CardInfo(
                     GrpId: card.GrpId,
                     Name: card.Name,
