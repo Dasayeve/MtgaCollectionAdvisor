@@ -291,6 +291,14 @@ needed; `CreatorRosterTests` fails CI when an entry would be dropped. The compil
 catches up at a release. While the repository is private the raw URL returns 404 and every copy
 uses the compiled list. Only the maintainer curates it: no UI adds channels.
 
+**Notices to players are `notices.json` at the repository root** (#96), read like
+`creators.json` at most every 6 hours (`NoticeSchedule`), the last good copy stored. An entry is
+`id`, `title`, `text` (plain text), `showFrom`, and optionally `requiresSet` (it waits until the
+player's Arena brings that set's cards, #101) and `showUntil`. Without `showUntil` a notice lasts 30
+days, or ends when a newer one starts on that copy, so notices don't pile up; `showUntil` replaces
+both. A dismissed `id` never shows again, so never reuse one. `NoticeFileTests` fails CI on a bad
+entry, an unknown property included. Test with `MTGA_ADVISOR_NOTICES_URL` on a test copy.
+
 **When a new set reaches Arena, set `refreshCardsAfter` in `card-data.json`** (#89), at the
 repository root: an ISO 8601 UTC time, committed to `master`, no release needed. Each copy
 re-imports its cards once, after Scryfall has a file generated past that time. A test fails CI

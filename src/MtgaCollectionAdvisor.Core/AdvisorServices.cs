@@ -7,6 +7,7 @@ using MtgaCollectionAdvisor.Core.Decks;
 using MtgaCollectionAdvisor.Core.Export;
 using MtgaCollectionAdvisor.Core.Logs;
 using MtgaCollectionAdvisor.Core.Memory;
+using MtgaCollectionAdvisor.Core.Notices;
 using MtgaCollectionAdvisor.Core.Storage;
 
 namespace MtgaCollectionAdvisor.Core;
@@ -43,6 +44,8 @@ public sealed class AdvisorServices : IAsyncDisposable
     public HttpClient CardDataFlagHttpClient { get; }
     public CardRefreshService CardRefreshService { get; }
     public CardImportService CardImportService { get; }
+    public NoticeStore NoticeStore { get; }
+    public NoticeService NoticeService { get; }
 
     private AdvisorServices(AppConfig config)
     {
@@ -84,6 +87,10 @@ public sealed class AdvisorServices : IAsyncDisposable
         CardRefreshService = new CardRefreshService(
             CardDataFlagHttpClient, ScryfallBulkImporter, new CardRefreshStore(Database), CardDatabaseStore,
             config.CardDataUrlOverride ?? CardDataFlag.RemoteUrl, arenaCards);
+
+        // notices.json comes from GitHub too (#96), through the same small client.
+        NoticeStore = new NoticeStore(Database);
+        NoticeService = new NoticeService(CardDataFlagHttpClient, NoticeStore, config.NoticesUrlOverride ?? NoticeFile.RemoteUrl);
     }
 
     public static async Task<AdvisorServices> CreateAsync(AppConfig config, CancellationToken ct = default)

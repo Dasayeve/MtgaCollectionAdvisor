@@ -280,6 +280,7 @@ public sealed partial class AdvisorSession
         await ReloadRankingAsync();
         Status = "Setup complete. Your decks are ranked against your collection.";
         Notify();
+        await SelectNoticeAsync(); // notices wait for the setup to finish
     }
 
     private void PublishSetup()

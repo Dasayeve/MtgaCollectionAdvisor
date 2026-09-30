@@ -22,6 +22,7 @@ public sealed partial class AdvisorSession(AppConfig config, ILogger<AdvisorSess
     private readonly SemaphoreSlim _operationGate = new(1, 1);
     private System.Threading.Timer? _mtgaWatchTimer;
     private System.Threading.Timer? _cardRefreshTimer;
+    private System.Threading.Timer? _noticeTimer;
     private int _cardRefreshRunning;
     private bool _mtgaWasRunning;
     private AdvisorServices services = null!;
@@ -91,6 +92,11 @@ public sealed partial class AdvisorSession(AppConfig config, ILogger<AdvisorSess
         // the start-up work (and a card backfill, if one runs) goes first.
         _cardRefreshTimer = new System.Threading.Timer(_ => _ = RefreshCardsForNewSetIfNeededAsync(), null,
             TimeSpan.FromMinutes(1), TimeSpan.FromMinutes(30));
+
+        // Maintainer notices (#96): now, in the background, then on a tick of their own. Reading the
+        // network is up to NoticeSchedule, every 6 hours at most.
+        _noticeTimer = new System.Threading.Timer(_ => _ = LoadNoticesAsync(), null,
+            TimeSpan.Zero, TimeSpan.FromMinutes(30));
     }
 
     /// <summary>The user's own decks per format key, so an empty User decks tab can say where the others are.</summary>
@@ -207,6 +213,7 @@ public sealed partial class AdvisorSession(AppConfig config, ILogger<AdvisorSess
             ? $"Card database updated, with {fromArena} new cards from MTG Arena."
             : "Card database updated.");
         await ReloadRankingAsync();
+        await SelectNoticeAsync(); // a notice waiting on a set's cards may be due now
     }
 
     public Task DeleteDeckAsync(string sourceId) => RunAsync("Removing deck", async report =>
@@ -732,6 +739,7 @@ public sealed partial class AdvisorSession(AppConfig config, ILogger<AdvisorSess
     {
         if (_mtgaWatchTimer is not null) await _mtgaWatchTimer.DisposeAsync();
         if (_cardRefreshTimer is not null) await _cardRefreshTimer.DisposeAsync();
+        if (_noticeTimer is not null) await _noticeTimer.DisposeAsync();
         if (_setupArenaPoll is not null) await _setupArenaPoll.DisposeAsync();
         if (services is not null) await services.DisposeAsync();
         _operationGate.Dispose();

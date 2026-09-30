@@ -18,10 +18,14 @@ public sealed record AppConfig(string? DatabasePathOverride, string? PlayerLogPa
     /// </summary>
     public string? CardDataUrlOverride { get; init; }
 
+    /// <summary>Where to read notices.json (#96) instead of the repository (MTGA_ADVISOR_NOTICES_URL), for a local test.</summary>
+    public string? NoticesUrlOverride { get; init; }
+
     public static AppConfig Default { get; } = new(
         DatabasePathOverride: Environment.GetEnvironmentVariable("MTGA_ADVISOR_DB_PATH"),
         PlayerLogPathOverride: Environment.GetEnvironmentVariable("MTGA_ADVISOR_PLAYERLOG_PATH"))
     {
         CardDataUrlOverride = Environment.GetEnvironmentVariable("MTGA_ADVISOR_CARD_DATA_URL"),
+        NoticesUrlOverride = Environment.GetEnvironmentVariable("MTGA_ADVISOR_NOTICES_URL"),
     };
 }

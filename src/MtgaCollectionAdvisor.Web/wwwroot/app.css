@@ -954,6 +954,10 @@ input[type="checkbox"], input[type="range"] { accent-color: var(--text); }
 .modal-panel h2 { font-size: 18px; margin-bottom: var(--space-2); }
 .modal-actions { display: flex; justify-content: flex-end; gap: var(--space-2); margin-top: var(--space-4); }
 
+/* A maintainer notice (#96): a short message, so a narrower panel. No colour of its own. */
+.notice-panel { width: min(460px, 100%); }
+.notice-text { white-space: pre-line; line-height: 1.5; }
+
 .field { margin-top: var(--space-4); }
 
 .field label {
