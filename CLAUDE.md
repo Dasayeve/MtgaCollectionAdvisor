@@ -316,9 +316,10 @@ set's cards reach Arena days before Scryfall gives them `arena_id`. Arena keeps 
 Scryfall uses, and no legality or images. So it only lends ids (`CardSourceMerge`): a Scryfall
 print without an id is matched by set, collector number *and* name (old Arena-only sets give
 one number to several cards), and a card Scryfall lacks gets provisional legality until the next
-import replaces it, only when Scryfall already lists its set's Arena prints without ids (a set
-being released). Arena's file also holds old cards under codes Scryfall never gave Arena ids
-(Lotus Petal under TMP): "no set knows it" made them Standard-legal until the v0.7.0 smoke test. Open it `Mode=ReadOnly;Pooling=False`, so no handle outlives the read and
+import replaces it: in each format, the legality most of its set's id-less Scryfall prints have.
+Arena's file also holds old cards under codes Scryfall never gave Arena ids (Lotus Petal under
+TMP, Umezawa's Jitte under PZA): "no set knows it", then "Scryfall lists the set", both made them
+Standard-legal in the v0.7.0 smoke test. Open it `Mode=ReadOnly;Pooling=False`, so no handle outlives the read and
 gets in the way of Arena's update. Names carry markup: `<nobr>`, `///` between split halves,
 and a sprite before an Alchemy card, which must become `A-` (`ArenaCardText`). Alchemy cards
 are not flagged `IsRebalanced` in the file. A failed read never fails an import. The folder

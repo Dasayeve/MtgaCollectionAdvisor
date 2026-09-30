@@ -14,11 +14,12 @@ public sealed record CardMerge(IReadOnlyList<CardInfo> Cards, CardMergeCounts Co
 /// <item>A card Scryfall lists with an arena_id is kept as is, whatever Arena's file says.</item>
 /// <item>An Arena card Scryfall has no id for takes the Scryfall print with the same set,
 /// collector number and name: its legality, images and name, under Arena's id.</item>
-/// <item>An Arena card Scryfall lacks is built from Arena's file, with no image. It is legal in
-/// every format only when it is a paper card of a set being released: Scryfall lists the set's
-/// Arena prints, none with an id yet. Any other set's missing card (Arena keeps old cards under
-/// codes such as TMP or BOK that Scryfall never gave Arena ids), a digital-only or a rebalanced
-/// one, is legal nowhere. This lasts until Scryfall catches up: the next import replaces it.</item>
+/// <item>An Arena card Scryfall lacks is built from Arena's file, with no image. In each format it
+/// is legal as its set is: when most of the set's Arena prints Scryfall lists without an id are
+/// legal there, as a set being released is (Reality Fracture's 459 are all Standard-legal). Any
+/// other card is legal nowhere: an old set's (Arena keeps old cards under codes such as TMP or
+/// PZA, whose prints Scryfall doesn't call legal), a digital-only or a rebalanced one. This lasts
+/// until Scryfall catches up: the next import replaces it.</item>
 /// </list>
 /// </summary>
 public static class CardSourceMerge
@@ -42,10 +43,13 @@ public static class CardSourceMerge
             .Concat(arena.Where(c => known.Contains(c.GrpId)).Select(c => c.SetCode.ToLowerInvariant()))
             .ToHashSet();
 
-        // A set being released: Scryfall already lists its Arena prints, without ids. Only these
-        // are assumed legal. A set nobody lists that way is not new: Arena's file holds old cards
-        // (Lotus Petal under TMP, Umezawa's Jitte under BOK) that must never read as Standard-legal.
-        var releasingSets = scryfallWithoutId.Keys.Select(k => k.Set).ToHashSet();
+        // Per set, the legality most of its id-less Arena prints have on Scryfall. A set being
+        // released has them all legal; Arena's old cards (Lotus Petal under TMP, Umezawa's Jitte
+        // under PZA) belong to sets with none, or none legal, and must never read as legal.
+        var setLegality = scryfallWithoutId
+            .SelectMany(entry => entry.Value.Select(print => (entry.Key.Set, print)))
+            .GroupBy(p => p.Set, p => p.print)
+            .ToDictionary(g => g.Key, g => SetLegality.Of(g.ToList()));
 
         int matched = 0, arenaOnly = 0;
         foreach (var card in arena)
@@ -60,7 +64,10 @@ public static class CardSourceMerge
             else
             {
                 var set = card.SetCode.ToLowerInvariant();
-                var legal = !card.IsDigitalOnly && !card.IsRebalanced && !knownSets.Contains(set) && releasingSets.Contains(set);
+                var legal = !card.IsDigitalOnly && !card.IsRebalanced && !knownSets.Contains(set)
+                    && setLegality.TryGetValue(set, out var ofSet)
+                    ? ofSet
+                    : SetLegality.None;
                 cards.Add(new CardInfo(
                     GrpId: card.GrpId,
                     Name: card.Name,
@@ -68,11 +75,11 @@ public static class CardSourceMerge
                     ManaCost: card.ManaCost,
                     Colors: card.Colors,
                     Rarity: card.Rarity,
-                    StandardLegal: legal,
-                    PioneerLegal: legal,
+                    StandardLegal: legal.Standard,
+                    PioneerLegal: legal.Pioneer,
                     IsNonBasicLand: card.IsNonBasicLand,
-                    BrawlLegal: legal,
-                    StandardBrawlLegal: legal));
+                    BrawlLegal: legal.Brawl,
+                    StandardBrawlLegal: legal.StandardBrawl));
                 arenaOnly++;
             }
         }
@@ -93,4 +100,16 @@ public static class CardSourceMerge
         || string.Equals(FrontFace(scryfall), FrontFace(arena), StringComparison.OrdinalIgnoreCase);
 
     private static string FrontFace(string name) => name.Split(" // ")[0];
+}
+
+/// <summary>A set's legality in each format: legal where most of its prints are (#101).</summary>
+internal sealed record SetLegality(bool Standard, bool Pioneer, bool Brawl, bool StandardBrawl)
+{
+    public static readonly SetLegality None = new(false, false, false, false);
+
+    public static SetLegality Of(IReadOnlyList<CardInfo> prints)
+    {
+        bool Most(Func<CardInfo, bool> legal) => prints.Count(legal) * 2 > prints.Count;
+        return new SetLegality(Most(p => p.StandardLegal), Most(p => p.PioneerLegal), Most(p => p.BrawlLegal), Most(p => p.StandardBrawlLegal));
+    }
 }

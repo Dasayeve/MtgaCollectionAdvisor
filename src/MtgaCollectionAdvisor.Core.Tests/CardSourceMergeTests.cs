@@ -114,6 +114,26 @@ public sealed class CardSourceMergeTests
     }
 
     [Fact]
+    public void An_Arena_only_card_takes_the_legality_most_of_its_sets_prints_have()
+    {
+        // PZA-style: Scryfall lists the set's Arena prints without ids, none of them Standard-legal
+        // (found in the v0.7.0 smoke test: Umezawa's Jitte under PZA had become Standard-legal).
+        var promo = AngelPrint with { SetCode = "pza", StandardLegal = false, StandardBrawlLegal = false, PioneerLegal = false };
+        var prints = new Dictionary<(string, string), IReadOnlyList<CardInfo>>
+        {
+            [CardSourceMerge.Key("pza", "1")] = [promo with { Name = "One" }],
+            [CardSourceMerge.Key("pza", "2")] = [promo with { Name = "Two", BrawlLegal = false }],
+            [CardSourceMerge.Key("pza", "3")] = [promo with { Name = "Three" }],
+        };
+
+        var merge = CardSourceMerge.Merge([Sheoldred], prints, [Arena(9999, "Umezawa's Jitte", "PZA", "99")]);
+
+        var jitte = merge.Cards.Single(c => c.GrpId == 9999);
+        Assert.False(jitte.StandardLegal || jitte.PioneerLegal || jitte.StandardBrawlLegal);
+        Assert.True(jitte.BrawlLegal); // 2 of 3 prints are Brawl-legal
+    }
+
+    [Fact]
     public void An_Arena_only_card_of_a_set_nobody_lists_is_legal_nowhere()
     {
         var merge = CardSourceMerge.Merge([Sheoldred], new Dictionary<(string, string), IReadOnlyList<CardInfo>>(),
