@@ -313,6 +313,8 @@ gets in the way of Arena's update. Names carry markup: `<nobr>`, `///` between s
 and a sprite before an Alchemy card, which must become `A-` (`ArenaCardText`). Alchemy cards
 are not flagged `IsRebalanced` in the file. A failed read never fails an import. The folder
 is remembered, so Arena needn't run, and a new file (a new hash) with unknown ids triggers one import.
+Scryfall publishing the ids later triggers nothing: the Arena-built cards stay until the next
+import, so set `refreshCardsAfter` once Scryfall has the new set's `arena_id`s.
 
 **Every network call gets a ceiling per install before it gets code** (#89): how often in the
 worst case (restarts, retries), held across restarts by storing the times, and "no news" on
