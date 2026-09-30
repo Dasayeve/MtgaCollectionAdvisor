@@ -10,8 +10,14 @@ public sealed class CardDatabaseStore(Database database)
     /// When Scryfall generated the file the cards come from (#89): what a card-data flag is
     /// compared with. Null when unknown, which counts as older than any flag.
     /// </param>
+    /// <param name="arenaFile">
+    /// MTG Arena's card database the cards were merged with (#101), or null when none was read.
+    /// Its folder is remembered for an import with Arena closed; its name stops it asking for
+    /// another import.
+    /// </param>
     public async Task ReplaceAllAsync(
-        IAsyncEnumerable<CardInfo> cards, DateTimeOffset? sourceUpdatedAt = null, CancellationToken ct = default)
+        IAsyncEnumerable<CardInfo> cards, DateTimeOffset? sourceUpdatedAt = null, CancellationToken ct = default,
+        ArenaCardFile? arenaFile = null)
     {
         var importedAt = DateTimeOffset.UtcNow.ToString("O");
 
@@ -77,12 +83,17 @@ public sealed class CardDatabaseStore(Database database)
         await using (var state = connection.CreateCommand())
         {
             state.CommandText = """
-                INSERT INTO card_import_state (id, last_imported, source_updated_at) VALUES (1, $at, $source)
+                INSERT INTO card_import_state (id, last_imported, source_updated_at, arena_raw_folder, arena_database)
+                VALUES (1, $at, $source, $arenaFolder, $arenaDatabase)
                 ON CONFLICT (id) DO UPDATE SET
                     last_imported     = excluded.last_imported,
-                    source_updated_at = excluded.source_updated_at
+                    source_updated_at = excluded.source_updated_at,
+                    arena_raw_folder  = COALESCE(excluded.arena_raw_folder, card_import_state.arena_raw_folder),
+                    arena_database    = excluded.arena_database
                 """;
             state.Parameters.AddWithValue("$at", importedAt);
+            state.Parameters.AddWithValue("$arenaFolder", (object?)arenaFile?.Folder ?? DBNull.Value);
+            state.Parameters.AddWithValue("$arenaDatabase", (object?)arenaFile?.FileName ?? DBNull.Value);
             state.Parameters.AddWithValue("$source",
                 sourceUpdatedAt is { } source ? source.ToUniversalTime().ToString("O") : DBNull.Value);
             await state.ExecuteNonQueryAsync(ct);
@@ -125,6 +136,32 @@ public sealed class CardDatabaseStore(Database database)
                 System.Globalization.DateTimeStyles.None, out var at)
             ? at
             : null;
+    }
+
+    /// <summary>Where MTG Arena's card database was last read, and which file the cards were last checked against (#101).</summary>
+    public async Task<ArenaSourceState> GetArenaSourceAsync(CancellationToken ct = default)
+    {
+        await using var connection = await database.OpenAsync(ct);
+        await using var command = connection.CreateCommand();
+        command.CommandText = "SELECT arena_raw_folder, arena_database FROM card_import_state WHERE id = 1";
+        await using var reader = await command.ExecuteReaderAsync(ct);
+        return await reader.ReadAsync(ct)
+            ? new ArenaSourceState(reader.IsDBNull(0) ? null : reader.GetString(0), reader.IsDBNull(1) ? null : reader.GetString(1))
+            : new ArenaSourceState(null, null);
+    }
+
+    /// <summary>
+    /// An Arena file checked without an import: it held nothing new, or couldn't be read. Either
+    /// way it is not checked again; a card database never imported has nothing to record it on.
+    /// </summary>
+    public async Task RecordArenaFileCheckedAsync(ArenaCardFile file, CancellationToken ct = default)
+    {
+        await using var connection = await database.OpenAsync(ct);
+        await using var command = connection.CreateCommand();
+        command.CommandText = "UPDATE card_import_state SET arena_raw_folder = $folder, arena_database = $name WHERE id = 1";
+        command.Parameters.AddWithValue("$folder", file.Folder);
+        command.Parameters.AddWithValue("$name", file.FileName);
+        await command.ExecuteNonQueryAsync(ct);
     }
 
     public async Task<DateTimeOffset?> GetLastImportedAsync(CancellationToken ct = default)
@@ -269,3 +306,6 @@ public sealed class CardDatabaseStore(Database database)
 
 /// <summary>How many cards the database has, and how many have each column a later migration added.</summary>
 public sealed record CardDataCounts(int Cards, int WithImage, int WithLandFlag, int WithBrawlLegality, int WithStandardBrawlLegality);
+
+/// <summary>MTG Arena's card database as the last import or check left it (#101); both null before any.</summary>
+public sealed record ArenaSourceState(string? RawFolder, string? Database);

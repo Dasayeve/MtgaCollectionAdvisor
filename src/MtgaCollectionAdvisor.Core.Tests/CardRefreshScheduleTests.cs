@@ -106,4 +106,31 @@ public sealed class CardRefreshScheduleTests
             Assert.False(CardRefreshSchedule.ShouldImport(Flag, importedFrom, scryfallFileAt: later, lastAutoAttempt: Now, later));
         }
     }
+
+    [Fact]
+    public void A_new_Arena_file_with_unknown_ids_imports()
+    {
+        Assert.True(CardRefreshSchedule.ShouldImportForArena("Raw_CardDatabase_b.mtga", "Raw_CardDatabase_a.mtga", 305, null, Now));
+        Assert.True(CardRefreshSchedule.ShouldImportForArena("Raw_CardDatabase_b.mtga", checkedArenaFile: null, 305, null, Now));
+    }
+
+    [Fact]
+    public void The_same_Arena_file_never_imports_twice()
+    {
+        Assert.False(CardRefreshSchedule.ShouldImportForArena("Raw_CardDatabase_b.mtga", "Raw_CardDatabase_b.mtga", 305, null, Now));
+    }
+
+    [Fact]
+    public void A_new_Arena_file_that_adds_nothing_does_not_import()
+    {
+        Assert.False(CardRefreshSchedule.ShouldImportForArena("Raw_CardDatabase_b.mtga", "Raw_CardDatabase_a.mtga", 0, null, Now));
+        Assert.False(CardRefreshSchedule.ShouldImportForArena(null, "Raw_CardDatabase_a.mtga", 0, null, Now));
+    }
+
+    [Fact]
+    public void A_new_Arena_file_waits_for_the_window_after_an_automatic_import()
+    {
+        Assert.False(CardRefreshSchedule.ShouldImportForArena("Raw_CardDatabase_b.mtga", "Raw_CardDatabase_a.mtga", 305, Now.AddHours(-1), Now));
+        Assert.True(CardRefreshSchedule.ShouldImportForArena("Raw_CardDatabase_b.mtga", "Raw_CardDatabase_a.mtga", 305, Now.AddHours(-6), Now));
+    }
 }

@@ -18,6 +18,7 @@ public sealed class CardRefreshServiceTests : IAsyncLifetime
     private static readonly DateTimeOffset Now = Flag.AddHours(10);
 
     private readonly string _databasePath = Path.Combine(Path.GetTempPath(), $"advisor-refresh-{Guid.NewGuid():N}.db");
+    private readonly string _arenaFolder = Directory.CreateTempSubdirectory("arena-refresh-").FullName;
     private CardRefreshStore _store = null!;
     private CardDatabaseStore _cards = null!;
 
@@ -32,6 +33,7 @@ public sealed class CardRefreshServiceTests : IAsyncLifetime
     public Task DisposeAsync()
     {
         TestDatabaseFiles.Delete(_databasePath);
+        Directory.Delete(_arenaFolder, recursive: true);
         return Task.CompletedTask;
     }
 
@@ -140,6 +142,49 @@ public sealed class CardRefreshServiceTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task A_new_Arena_file_with_cards_the_database_lacks_imports_once_without_the_network()
+    {
+        var arenaFile = ArenaFile("Raw_CardDatabase_b.mtga");
+        var (service, network) = Service(FlagJson(null), scryfallFileAt: Flag, arenaFile);
+        await ImportCardsFrom(Flag.AddDays(-4));
+
+        Assert.True((await service.CheckAsync(Now)).ShouldImport);
+        Assert.Equal(0, network.ScryfallReads);
+
+        // The import records the file it was merged with: that file never asks again.
+        await service.RecordAutoImportAsync(Now);
+        await _cards.ReplaceAllAsync(OneCard(), Flag, arenaFile: arenaFile);
+        Assert.False((await service.CheckAsync(Now.AddDays(1))).ShouldImport);
+    }
+
+    [Fact]
+    public async Task An_Arena_file_with_nothing_new_is_recorded_and_not_read_again()
+    {
+        var arenaFile = ArenaFile("Raw_CardDatabase_b.mtga", [new ArenaRow(1, "Card", "SET", "1", 2, "oR", "4", "2")]);
+        var (service, _) = Service(FlagJson(null), scryfallFileAt: Flag, arenaFile);
+        await ImportCardsFrom(Flag.AddDays(-4));
+
+        Assert.False((await service.CheckAsync(Now)).ShouldImport);
+
+        Assert.Equal("Raw_CardDatabase_b.mtga", (await _cards.GetArenaSourceAsync()).Database);
+    }
+
+    [Fact]
+    public async Task An_unreadable_Arena_file_says_why_and_is_not_read_again()
+    {
+        var path = Path.Combine(_arenaFolder, "Raw_CardDatabase_b.mtga");
+        await File.WriteAllTextAsync(path, "not a database");
+        var (service, _) = Service(FlagJson(null), scryfallFileAt: Flag, new ArenaCardFile(path, "Raw_CardDatabase_b.mtga"));
+        await ImportCardsFrom(Flag.AddDays(-4));
+
+        var check = await service.CheckAsync(Now);
+
+        Assert.False(check.ShouldImport);
+        Assert.NotNull(check.ReadFailure);
+        Assert.Null((await service.CheckAsync(Now.AddDays(1))).ReadFailure);
+    }
+
+    [Fact]
     public void The_repository_card_data_json_parses()
     {
         // The maintainer edits this file by hand (#89); a typo must fail CI, not every copy of the app.
@@ -160,10 +205,18 @@ public sealed class CardRefreshServiceTests : IAsyncLifetime
         yield return new CardInfo(1, "Card", "SET", "{R}", "R", CardRarity.Common, true, true);
     }
 
-    private (CardRefreshService, FakeNetwork) Service(string flagJson, DateTimeOffset scryfallFileAt)
+    private (CardRefreshService, FakeNetwork) Service(string flagJson, DateTimeOffset scryfallFileAt, ArenaCardFile? arenaFile = null)
     {
         var network = new FakeNetwork(flagJson) { ScryfallFileAt = scryfallFileAt };
-        return (new CardRefreshService(new HttpClient(network), Scryfall(network), _store, _cards, FlagUrl), network);
+        // Never the machine's own MTG Arena: a test finds only the file it made, or none.
+        var arena = new ArenaCardSource(_cards, _ => arenaFile);
+        return (new CardRefreshService(new HttpClient(network), Scryfall(network), _store, _cards, FlagUrl, arena), network);
+    }
+
+    private ArenaCardFile ArenaFile(string name, IEnumerable<ArenaRow>? rows = null)
+    {
+        var path = ArenaCardFiles.Create(Path.Combine(_arenaFolder, name), rows ?? ArenaCardFiles.SampleRows);
+        return new ArenaCardFile(path, name);
     }
 
     private static ScryfallBulkImporter Scryfall(FakeNetwork network) => new(new HttpClient(network));

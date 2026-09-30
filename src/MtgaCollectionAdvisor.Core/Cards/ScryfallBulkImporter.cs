@@ -15,6 +15,14 @@ namespace MtgaCollectionAdvisor.Core.Cards;
 /// <summary>Scryfall's "default_cards" file: where to download it, and when it was generated.</summary>
 public sealed record ScryfallBulkFile(string DownloadUri, DateTimeOffset? UpdatedAt);
 
+/// <summary>
+/// One read of Scryfall's file (#101): the cards with an arena_id, and the Arena prints without
+/// one yet, keyed by <see cref="CardSourceMerge.Key"/>, each with a GrpId of 0 until merged.
+/// </summary>
+public sealed record ScryfallImport(
+    IReadOnlyList<CardInfo> WithId,
+    IReadOnlyDictionary<(string Set, string Number), IReadOnlyList<CardInfo>> WithoutId);
+
 public sealed class ScryfallBulkImporter(HttpClient httpClient)
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
@@ -47,9 +55,34 @@ public sealed class ScryfallBulkImporter(HttpClient httpClient)
         return new ScryfallBulkFile(defaultCards.JsonlDownloadUri, defaultCards.UpdatedAt);
     }
 
-    public async IAsyncEnumerable<CardInfo> ImportAsync(
+    /// <summary>
+    /// The cards Scryfall lists with an arena_id, and the Arena prints it lists without one yet,
+    /// by set and collector number: a new set's, before Scryfall publishes its ids (#101).
+    /// <see cref="CardSourceMerge"/> gives them the ids from MTG Arena's own card database.
+    /// </summary>
+    public async Task<ScryfallImport> ImportWithArenaPrintsAsync(ScryfallBulkFile file, CancellationToken ct = default)
+    {
+        var withId = new List<CardInfo>();
+        var withoutId = new Dictionary<(string Set, string Number), List<CardInfo>>();
+        await foreach (var card in ReadAsync(file, ct))
+        {
+            if (card.ArenaId is { } arenaId)
+            {
+                withId.Add(ToCardInfo(card, arenaId));
+            }
+            else if (card.Games?.Contains("arena") == true && !string.IsNullOrWhiteSpace(card.CollectorNumber))
+            {
+                var key = CardSourceMerge.Key(card.Set, card.CollectorNumber);
+                if (!withoutId.TryGetValue(key, out var prints)) withoutId[key] = prints = [];
+                prints.Add(ToCardInfo(card, arenaId: 0));
+            }
+        }
+        return new ScryfallImport(withId, withoutId.ToDictionary(p => p.Key, IReadOnlyList<CardInfo> (p) => p.Value));
+    }
+
+    private async IAsyncEnumerable<ScryfallCard> ReadAsync(
         ScryfallBulkFile file,
-        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct = default)
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct)
     {
         await using var rawStream = await httpClient.GetStreamAsync(file.DownloadUri, ct);
         await using var gzipStream = new GZipStream(rawStream, CompressionMode.Decompress);
@@ -70,24 +103,27 @@ public sealed class ScryfallBulkImporter(HttpClient httpClient)
                 continue; // skip any malformed line rather than aborting the whole import
             }
 
-            if (card is null || card.ArenaId is null) continue;
-
-            var (image, backImage) = card.NormalImageUrls();
-            yield return new CardInfo(
-                GrpId: card.ArenaId.Value,
-                Name: card.Name,
-                SetCode: card.Set,
-                ManaCost: card.EffectiveManaCost,
-                Colors: card.EffectiveColors(),
-                Rarity: MapRarity(card),
-                StandardLegal: card.IsLegal("standard"),
-                PioneerLegal: card.IsLegal("pioneer"),
-                BrawlLegal: card.IsLegal(Formats.Brawl.ScryfallLegalityKey),
-                StandardBrawlLegal: card.IsLegal(Formats.StandardBrawl.ScryfallLegalityKey),
-                ImageUrl: image,
-                BackImageUrl: backImage,
-                IsNonBasicLand: card.IsNonBasicLand());
+            if (card is not null) yield return card;
         }
+    }
+
+    private static CardInfo ToCardInfo(ScryfallCard card, int arenaId)
+    {
+        var (image, backImage) = card.NormalImageUrls();
+        return new CardInfo(
+            GrpId: arenaId,
+            Name: card.Name,
+            SetCode: card.Set,
+            ManaCost: card.EffectiveManaCost,
+            Colors: card.EffectiveColors(),
+            Rarity: MapRarity(card),
+            StandardLegal: card.IsLegal("standard"),
+            PioneerLegal: card.IsLegal("pioneer"),
+            BrawlLegal: card.IsLegal(Formats.Brawl.ScryfallLegalityKey),
+            StandardBrawlLegal: card.IsLegal(Formats.StandardBrawl.ScryfallLegalityKey),
+            ImageUrl: image,
+            BackImageUrl: backImage,
+            IsNonBasicLand: card.IsNonBasicLand());
     }
 
     private static CardRarity MapRarity(ScryfallCard card)
