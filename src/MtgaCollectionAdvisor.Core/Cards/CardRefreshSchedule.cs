@@ -42,4 +42,21 @@ public static class CardRefreshSchedule
         IsPending(refreshAfter, importedSource, now)
         && scryfallFileAt is { } file && file >= refreshAfter!.Value
         && IsDue(lastAutoAttempt, now);
+
+    /// <summary>
+    /// Import now for MTG Arena's own card database (#101): Arena has a file the cards were not
+    /// checked against, it holds ids the card database lacks (a new set, before Scryfall publishes
+    /// their ids), and no automatic import was tried within <see cref="Interval"/>. The file's name
+    /// changes with each Arena data update, so one file asks once.
+    /// </summary>
+    public static bool ShouldImportForArena(
+        string? arenaFile,
+        string? checkedArenaFile,
+        int unknownIds,
+        DateTimeOffset? lastAutoAttempt,
+        DateTimeOffset now) =>
+        arenaFile is not null
+        && !string.Equals(arenaFile, checkedArenaFile, StringComparison.OrdinalIgnoreCase)
+        && unknownIds > 0
+        && IsDue(lastAutoAttempt, now);
 }

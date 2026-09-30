@@ -42,6 +42,7 @@ public sealed class AdvisorServices : IAsyncDisposable
     public CreatorRosterService CreatorRosterService { get; }
     public HttpClient CardDataFlagHttpClient { get; }
     public CardRefreshService CardRefreshService { get; }
+    public CardImportService CardImportService { get; }
 
     private AdvisorServices(AppConfig config)
     {
@@ -73,12 +74,16 @@ public sealed class AdvisorServices : IAsyncDisposable
         CreatorRosterHttpClient = CreatorRosterService.CreateHttpClient();
         CreatorRosterService = new CreatorRosterService(CreatorRosterHttpClient, new CreatorRosterStore(Database));
 
+        // MTG Arena's own card database lends the ids Scryfall doesn't publish yet (#101).
+        var arenaCards = new ArenaCardSource(CardDatabaseStore);
+        CardImportService = new CardImportService(ScryfallBulkImporter, arenaCards, CardDatabaseStore);
+
         // card-data.json comes from GitHub like creators.json; Scryfall's listing through the
         // importer, whose client already carries the headers Scryfall asks for (#89).
         CardDataFlagHttpClient = CreatorRosterService.CreateHttpClient();
         CardRefreshService = new CardRefreshService(
             CardDataFlagHttpClient, ScryfallBulkImporter, new CardRefreshStore(Database), CardDatabaseStore,
-            config.CardDataUrlOverride ?? CardDataFlag.RemoteUrl);
+            config.CardDataUrlOverride ?? CardDataFlag.RemoteUrl, arenaCards);
     }
 
     public static async Task<AdvisorServices> CreateAsync(AppConfig config, CancellationToken ct = default)

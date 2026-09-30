@@ -20,7 +20,8 @@ public sealed class CardRefreshService(
     ScryfallBulkImporter scryfall,
     CardRefreshStore store,
     CardDatabaseStore cards,
-    string flagUrl = CardDataFlag.RemoteUrl)
+    string flagUrl = CardDataFlag.RemoteUrl,
+    ArenaCardSource? arena = null)
 {
     public async Task<CardRefreshCheck> CheckAsync(DateTimeOffset now, CancellationToken ct = default)
     {
@@ -51,7 +52,11 @@ public sealed class CardRefreshService(
 
         var flag = CardDataFlag.Parse(flagJson);
         var importedSource = await cards.GetImportedSourceAsync(ct);
-        if (!CardRefreshSchedule.IsPending(flag, importedSource, now)) return new CardRefreshCheck(false, failure);
+        if (!CardRefreshSchedule.IsPending(flag, importedSource, now))
+        {
+            var (arenaImport, arenaFailure) = await CheckArenaAsync(state.AutoImportAt, now, ct);
+            return new CardRefreshCheck(arenaImport, failure ?? arenaFailure);
+        }
 
         var fileAt = state.ScryfallFileAt;
         if (CardRefreshSchedule.IsDue(state.ScryfallCheckedAt, now))
@@ -74,6 +79,34 @@ public sealed class CardRefreshService(
         return new CardRefreshCheck(
             CardRefreshSchedule.ShouldImport(flag, importedSource, fileAt, state.AutoImportAt, now),
             failure);
+    }
+
+    /// <summary>
+    /// MTG Arena's own card database (#101), without the network: a file the cards were not
+    /// checked against is read once, locally, and only when an import could follow. A file with
+    /// nothing new, or one that can't be read, is recorded and never read again.
+    /// </summary>
+    private async Task<(bool ShouldImport, string? Failure)> CheckArenaAsync(
+        DateTimeOffset? lastAutoAttempt, DateTimeOffset now, CancellationToken ct)
+    {
+        if (arena is null || !CardRefreshSchedule.IsDue(lastAutoAttempt, now)) return (false, null);
+
+        var checkedFile = (await cards.GetArenaSourceAsync(ct)).Database;
+        if (await arena.FindAsync(ct) is not { } file
+            || string.Equals(file.FileName, checkedFile, StringComparison.OrdinalIgnoreCase)) return (false, null);
+
+        var read = await ArenaCardSource.ReadAsync(file, ct);
+        if (read.Failure is { } reason)
+        {
+            await cards.RecordArenaFileCheckedAsync(file, ct);
+            return (false, reason);
+        }
+
+        var known = await cards.GetAllGrpIdsAsync(ct);
+        var unknown = read.Cards.Count(c => !known.Contains(c.GrpId));
+        if (unknown == 0) await cards.RecordArenaFileCheckedAsync(file, ct);
+
+        return (CardRefreshSchedule.ShouldImportForArena(file.FileName, checkedFile, unknown, lastAutoAttempt, now), null);
     }
 
     /// <summary>Recorded before an automatic import starts, so a failing one is tried once per window.</summary>

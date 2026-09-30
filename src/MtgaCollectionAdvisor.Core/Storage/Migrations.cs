@@ -170,6 +170,14 @@ public static class Migrations
                 auto_import_at       TEXT
             );
             """),
+
+        // MTG Arena's own card database (#101): the folder it was last read from, so an import
+        // with Arena closed still finds it, and the file (its name carries a hash) the cards were
+        // last checked against, so one file asks for one import at most. Both are cache.
+        new(9, "Arena card database", """
+            ALTER TABLE card_import_state ADD COLUMN arena_raw_folder TEXT;
+            ALTER TABLE card_import_state ADD COLUMN arena_database TEXT;
+            """),
     ];
 
     public static int Latest => All[^1].Version;

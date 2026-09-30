@@ -302,6 +302,20 @@ To watch a real refresh without touching `master`, serve a `card-data.json` loca
 `MTGA_ADVISOR_CARD_DATA_URL` at it, on a test copy (`MTGA_ADVISOR_DB_PATH`) whose
 `source_updated_at` is set back; the first check runs a minute after start.
 
+**MTG Arena's own card database lends the ids Scryfall doesn't publish yet** (#101). A new
+set's cards reach Arena days before Scryfall gives them `arena_id`. Arena keeps them in
+`MTGA_Data\Downloads\Raw\Raw_CardDatabase_<hash>.mtga`, a plain SQLite file with the ids
+Scryfall uses, and no legality or images. So it only lends ids (`CardSourceMerge`): a Scryfall
+print without an id is matched by set, collector number *and* name (old Arena-only sets give
+one number to several cards), and a card Scryfall lacks gets provisional legality until the next
+import replaces it. Open it `Mode=ReadOnly;Pooling=False`, so no handle outlives the read and
+gets in the way of Arena's update. Names carry markup: `<nobr>`, `///` between split halves,
+and a sprite before an Alchemy card, which must become `A-` (`ArenaCardText`). Alchemy cards
+are not flagged `IsRebalanced` in the file. A failed read never fails an import. The folder
+is remembered, so Arena needn't run, and a new file (a new hash) with unknown ids triggers one import.
+Scryfall publishing the ids later triggers nothing: the Arena-built cards stay until the next
+import, so set `refreshCardsAfter` once Scryfall has the new set's `arena_id`s.
+
 **Every network call gets a ceiling per install before it gets code** (#89): how often in the
 worst case (restarts, retries), held across restarts by storing the times, and "no news" on
 failure, never a retry loop. A player's app that meets a provider's rate limit looks broken

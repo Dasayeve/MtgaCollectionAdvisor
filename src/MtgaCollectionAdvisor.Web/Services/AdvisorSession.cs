@@ -188,11 +188,24 @@ public sealed partial class AdvisorSession(AppConfig config, ILogger<AdvisorSess
     {
         report("Downloading Scryfall bulk data (a few minutes)...");
         // Records which Scryfall file the cards came from: every import, manual or not, is what
-        // clears a pending card-data flag (#89).
-        var file = await services.ScryfallBulkImporter.GetDefaultCardsAsync();
-        await services.CardDatabaseStore.ReplaceAllAsync(services.ScryfallBulkImporter.ImportAsync(file), file.UpdatedAt);
+        // clears a pending card-data flag (#89). MTG Arena's own card database fills in the ids
+        // Scryfall doesn't publish yet (#101); failing to read it never fails the import.
+        var result = await services.CardImportService.ImportAsync();
+        if (result.ArenaFailure is { } reason)
+        {
+            log.LogWarning("MTG Arena's card database not used: {Reason}", reason);
+        }
+        if (result.Arena is { } counts)
+        {
+            log.LogInformation(
+                "Arena card database: {Missing} cards Scryfall has no id for, {Matched} matched by number, {ArenaOnly} from Arena only",
+                counts.MatchedByNumber + counts.ArenaOnly, counts.MatchedByNumber, counts.ArenaOnly);
+        }
         CardsUpdatedAt = await services.CardDatabaseStore.GetLastImportedAsync();
-        report("Card database updated.");
+        var fromArena = result.Arena is { } arena ? arena.MatchedByNumber + arena.ArenaOnly : 0;
+        report(fromArena > 0
+            ? $"Card database updated, with {fromArena} new cards from MTG Arena."
+            : "Card database updated.");
         await ReloadRankingAsync();
     }
 

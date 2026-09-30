@@ -48,6 +48,7 @@ public sealed class SchemaMigratorTests : IDisposable
         [6] = "E247E1DDF47869ACCDC6F423D9D9F645A03F6B5CCA166B555459B1AA98518AE5",
         [7] = "4EF864E6496D508DEB2C3B9BC54D9D93DF8959A01A5FC1F5DE56F25572EDE177",
         [8] = "50ACDADEB72AECCCF2DFAEB0278D914458F202B4C068DCE1E8B43BA5AA2EA7AF",
+        [9] = "603F46E3D4FFAE4D88EE3C6C074F8FF2663B8C3B0C5DD1ED0FED1ACD1FB427EF",
     };
 
     [Fact]
@@ -103,6 +104,18 @@ public sealed class SchemaMigratorTests : IDisposable
         Assert.Equal(["{\"MainDeck\":[{\"cardId\":90001,\"quantity\":4}]}"],
             await ColumnAsync("SELECT cards_json FROM arena_decks WHERE deck_id = 'a1b2c3'"));
         Assert.Equal(1, await ScalarAsync<long>("SELECT count(*) FROM creator_videos"));
+    }
+
+    [Fact]
+    public async Task Migration9_Should_AddTheArenaColumns_And_KeepTheImportState()
+    {
+        await CreateFromFixtureAsync("schema-v8.sql");
+
+        await SchemaMigrator.MigrateAsync(new Database(_databasePath));
+
+        Assert.Equal(["1|0|0"], await ColumnAsync("""
+            SELECT count(*) || '|' || count(arena_raw_folder) || '|' || count(arena_database) FROM card_import_state
+            """));
     }
 
     [Fact]
