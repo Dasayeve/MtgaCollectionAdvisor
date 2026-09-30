@@ -178,6 +178,22 @@ public static class Migrations
             ALTER TABLE card_import_state ADD COLUMN arena_raw_folder TEXT;
             ALTER TABLE card_import_state ADD COLUMN arena_database TEXT;
             """),
+
+        // Maintainer notices (#96): the last good notices.json and when it was last asked for
+        // (cache, like creator_roster), and the notices the player dismissed, which are the
+        // player's own and must be carried across by any later migration.
+        new(10, "Notices", """
+            CREATE TABLE notice_feed (
+                id               INTEGER PRIMARY KEY CHECK (id = 1),
+                json             TEXT,
+                fetched_at       TEXT,
+                last_attempt_at  TEXT
+            );
+            CREATE TABLE dismissed_notices (
+                id            TEXT PRIMARY KEY,
+                dismissed_at  TEXT NOT NULL
+            );
+            """),
     ];
 
     public static int Latest => All[^1].Version;

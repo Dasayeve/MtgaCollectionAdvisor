@@ -49,6 +49,7 @@ public sealed class SchemaMigratorTests : IDisposable
         [7] = "4EF864E6496D508DEB2C3B9BC54D9D93DF8959A01A5FC1F5DE56F25572EDE177",
         [8] = "50ACDADEB72AECCCF2DFAEB0278D914458F202B4C068DCE1E8B43BA5AA2EA7AF",
         [9] = "603F46E3D4FFAE4D88EE3C6C074F8FF2663B8C3B0C5DD1ED0FED1ACD1FB427EF",
+        [10] = "F000FA07555A8532EB403DF884BA51D87489310DE187031703A003164FAEBCDD",
     };
 
     [Fact]
@@ -116,6 +117,18 @@ public sealed class SchemaMigratorTests : IDisposable
         Assert.Equal(["1|0|0"], await ColumnAsync("""
             SELECT count(*) || '|' || count(arena_raw_folder) || '|' || count(arena_database) FROM card_import_state
             """));
+    }
+
+    [Fact]
+    public async Task Migration10_Should_AddTheNoticeTables()
+    {
+        await CreateFromFixtureAsync("schema-v8.sql");
+
+        await SchemaMigrator.MigrateAsync(new Database(_databasePath));
+
+        Assert.Equal(2, await ScalarAsync<long>(
+            "SELECT count(*) FROM sqlite_master WHERE name IN ('notice_feed', 'dismissed_notices')"));
+        Assert.Equal(0, await ScalarAsync<long>("SELECT count(*) FROM dismissed_notices"));
     }
 
     [Fact]

@@ -154,6 +154,11 @@ else
     {
         <DeckDialog OnClose="() => _showImportDeck = false" />
     }
+    else if (Session.CurrentNotice is { } notice)
+    {
+        @* Never over the deck dialog: it waits until that one closes (#96). *@
+        <NoticeDialog Notice="notice" OnDismiss="() => Session.DismissNoticeAsync(notice.Id)" />
+    }
 }
 
 @code {
@@ -164,6 +169,7 @@ else
     {
         Session.Changed += OnSessionChanged;
         Session.OpenDeckChanged += OnSessionChanged;
+        Session.NoticeChanged += OnSessionChanged;
         Updater.Changed += OnSessionChanged;
     }
 
@@ -191,6 +197,7 @@ else
     {
         Session.Changed -= OnSessionChanged;
         Session.OpenDeckChanged -= OnSessionChanged;
+        Session.NoticeChanged -= OnSessionChanged;
         Updater.Changed -= OnSessionChanged;
     }
 }

@@ -173,6 +173,16 @@ public sealed class CardDatabaseStore(Database database)
         return result is string text && DateTimeOffset.TryParse(text, out var value) ? value : null;
     }
 
+    /// <summary>Whether any card of this set is known (#96: a notice about a set waits for its cards).</summary>
+    public async Task<bool> HasSetAsync(string setCode, CancellationToken ct = default)
+    {
+        await using var connection = await database.OpenAsync(ct);
+        await using var command = connection.CreateCommand();
+        command.CommandText = "SELECT EXISTS (SELECT 1 FROM cards WHERE set_code = $set COLLATE NOCASE)";
+        command.Parameters.AddWithValue("$set", setCode);
+        return Convert.ToInt64(await command.ExecuteScalarAsync(ct)) == 1;
+    }
+
     /// <summary>The name of every Arena id we know about - used to write the collection out.</summary>
     public async Task<IReadOnlyDictionary<int, string>> GetNamesAsync(CancellationToken ct = default)
     {
