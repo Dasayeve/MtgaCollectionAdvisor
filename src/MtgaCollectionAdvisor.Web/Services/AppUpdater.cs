@@ -13,12 +13,14 @@ namespace MtgaCollectionAdvisor.Web.Services;
 public sealed class AppUpdater
 {
     private readonly ILogger<AppUpdater> _log;
+    private readonly ILogger _lifecycleLog;
     private readonly UpdateManager _manager;
     private VelopackAsset? _ready;
 
-    public AppUpdater(ILogger<AppUpdater> log)
+    public AppUpdater(ILogger<AppUpdater> log, ILoggerFactory loggers)
     {
         _log = log;
+        _lifecycleLog = loggers.CreateLogger(LogFiles.StartupCategory);
         var source = UpdateSource.OverrideFrom(Environment.GetEnvironmentVariable(UpdateSource.OverrideVariable));
         _manager = source is null
             ? new UpdateManager(new GithubSource(UpdateSource.RepositoryUrl, accessToken: null, prerelease: false))
@@ -70,6 +72,7 @@ public sealed class AppUpdater
 
         // --no-browser: the window already open reconnects to the new instance (the reconnect
         // script reloads when its old circuit is rejected), so a second one is not wanted.
+        _lifecycleLog.LogInformation("Stopping: restart to update {Version}", _ready.Version);
         _manager.ApplyUpdatesAndRestart(_ready, ["--no-browser"]);
     }
 

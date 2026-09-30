@@ -79,12 +79,20 @@ not in the server log. If nothing is clickable, check this first.
 The taskbar icon of the Chromium `--app` window comes from the page's favicon and web app
 manifest, not from the executable's embedded icon.
 
-**Closing the window stops the app, 45 s later** (#34). `WindowPresence` counts window
-*connections*, not circuits: Blazor keeps a closed window's circuit for about 3 minutes in
-case it reconnects, so `OnCircuitClosedAsync` fires far too late. Nothing stops until a
-first window has connected, so a `--no-browser` run that nobody opens stays up. A second
-launch finds the running instance through `/instance` and opens a window on it. An
-instance killed mid-shutdown can still hold port 5199 and lock `bin/` DLLs, so check
+**Closing the window stops the app, 45 s later** (#34), **but a lost connection does not** (#99).
+Browsers throttle and freeze hidden pages (a window behind MTG Arena in full screen counts as
+hidden), and a frozen page drops its connection: stopping on that killed the app under the
+player's window. So each page reports itself with beacons (`POST /window/{id}/visible|hidden|closed`,
+in `App.razor`, web-standard so any browser works), and `WindowPresence` decides:
+- **every window said `closed`:** stop after 45 s (a reload's new page connects in that time);
+- **a window went quiet after `hidden`:** it is asleep; wait 12 h, and keep its circuit as long;
+- **quiet while visible, or never reported:** stop after 30 min.
+
+`WindowPresence` counts *connections*, not circuits: Blazor keeps a closed window's circuit for
+hours here, so `OnCircuitClosedAsync` means nothing. Nothing stops until a first window has
+connected, so a `--no-browser` run that nobody opens stays up. Every stop is logged with its
+reason. A second launch finds the running instance through `/instance` and opens a window on
+it. An instance killed mid-shutdown can still hold port 5199 and lock `bin/` DLLs, so check
 `tasklist` before blaming a port conflict or a broken build.
 
 **Test on another port while the user has the app open:** set `MTGA_ADVISOR_PORT` (e.g.
@@ -95,9 +103,10 @@ copy at another file, such as a copy of the user's database; without it, a test 
 user's data.
 
 **A browser-automation tab is hidden, and Edge freezes hidden tabs** (#56). After a minute
-idle, scripts and screenshots in it time out ("renderer frozen"), its circuit drops, and 45 s
-later the app stops as if its window had closed. That is not an app bug. Keep driving the tab,
-or check the outcome server-side (`curl` the page, look at the database).
+idle, scripts and screenshots in it time out ("renderer frozen") and its circuit drops. That is
+not an app bug. Since #99 the app keeps running for it (it said `hidden`); closing the tab stops
+the app 45 s later. Keep driving the tab, or check the outcome server-side (`curl` the page,
+look at the database).
 
 **The first-run setup (#56) resumes through a marker file**, `advisor.db.setup`, next to the
 database. It is created when the setup starts and deleted when it finishes, so a setup closed
