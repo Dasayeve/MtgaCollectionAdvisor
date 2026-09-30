@@ -1,3 +1,11 @@
 {
-  "notices": []
+  "notices": [
+    {
+      "id": "reality-fracture-cards",
+      "title": "Reality Fracture is here",
+      "text": "The new set's cards are in your card database. Decks that use them can now be priced and built.",
+      "showFrom": "2026-09-29T00:00:00Z",
+      "requiresSet": "fra"
+    }
+  ]
 }
