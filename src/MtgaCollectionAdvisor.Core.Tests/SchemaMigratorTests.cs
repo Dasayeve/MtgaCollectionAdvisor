@@ -81,6 +81,7 @@ public sealed class SchemaMigratorTests : IDisposable
     [InlineData("schema-v5.sql")]
     [InlineData("schema-v7.sql")]
     [InlineData("schema-v8.sql")]
+    [InlineData("schema-v10.sql")]
     public async Task MigrateAsync_Should_KeepUserData_When_Upgrading(string fixture)
     {
         await CreateFromFixtureAsync(fixture);
@@ -120,6 +121,17 @@ public sealed class SchemaMigratorTests : IDisposable
     }
 
     [Fact]
+    public async Task MigrateAsync_Should_KeepDismissedNotices_When_Upgrading()
+    {
+        // A dismissed notice is the player's own choice (#96): any later migration must carry it.
+        await CreateFromFixtureAsync("schema-v10.sql");
+
+        await SchemaMigrator.MigrateAsync(new Database(_databasePath));
+
+        Assert.Equal(["reality-fracture-cards"], await ColumnAsync("SELECT id FROM dismissed_notices"));
+    }
+
+    [Fact]
     public async Task Migration10_Should_AddTheNoticeTables()
     {
         await CreateFromFixtureAsync("schema-v8.sql");
@@ -147,6 +159,7 @@ public sealed class SchemaMigratorTests : IDisposable
     [InlineData("schema-v5.sql")]
     [InlineData("schema-v7.sql")]
     [InlineData("schema-v8.sql")]
+    [InlineData("schema-v10.sql")]
     public async Task MigrateAsync_Should_ProduceSameSchema_As_FreshDatabase(string fixture)
     {
         var freshPath = Path.Combine(_directory, "fresh.db");
