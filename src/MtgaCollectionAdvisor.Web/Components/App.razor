@@ -96,6 +96,36 @@
             addEventListener("pageshow", function (e) { if (e.persisted) reportVisibility(); });
         })();
     </script>
+    @* Card and pack previews inside a dialog (#84) are position: fixed, so the dialog's scrolling
+       never clips them; this puts each beside the name under the mouse, on whichever side has
+       room, and inside the window. Plain DOM, no Blazor: CSS still decides when they show. *@
+    <script>
+        (function () {
+            var NAMES = ".modal-panel .card-name-hover, .modal-panel .pack-name-hover";
+            function previewOf(name) {
+                return name.classList.contains("pack-name-hover")
+                    ? name.closest(".pack") && name.closest(".pack").querySelector(".pack-preview")
+                    : name.querySelector(".card-preview");
+            }
+            function place(e) {
+                var name = e.target.closest && e.target.closest(NAMES);
+                var preview = name && previewOf(name);
+                if (!preview) return;
+                // After the hover rule has shown it, so it has a size to measure.
+                requestAnimationFrame(function () {
+                    var r = name.getBoundingClientRect(), w = preview.offsetWidth, h = preview.offsetHeight, gap = 14, edge = 8;
+                    var x = r.right + gap;
+                    if (x + w > innerWidth - edge) x = r.left - gap - w;
+                    x = Math.max(edge, Math.min(x, innerWidth - w - edge));
+                    var y = Math.max(edge, Math.min(r.top + r.height / 2 - h / 2, innerHeight - h - edge));
+                    preview.style.left = x + "px";
+                    preview.style.top = y + "px";
+                });
+            }
+            document.addEventListener("mouseover", place);
+            document.addEventListener("focusin", place);
+        })();
+    </script>
 </body>
 
 </html>
