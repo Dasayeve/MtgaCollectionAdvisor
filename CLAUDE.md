@@ -143,6 +143,11 @@ the Windows setting and once for the player's pick.
 `GetUserDefaultGeoName`) and the regional format, the only one `RegionInfo.CurrentRegion`
 follows. They often differ; `WindowsRegion` reads both.
 
+**A preview inside a dialog is cut at its edges** (#84): `.modal-panel` scrolls, and an
+absolutely positioned popover in it is clipped with no sign of why. Inside a dialog, card and pack
+previews are `position: fixed`, and a small script in `App.razor` places each beside the name
+under the mouse. A new popover in a dialog needs the same, or it gets cut off.
+
 **Report progress synchronously when a final status follows.** `Progress<T>` posts each
 report to run later, so the last "Reading deck 150…" can land after the summary line and
 overwrite it in the status bar. `AdvisorSession` has an `ImmediateProgress` for this.
