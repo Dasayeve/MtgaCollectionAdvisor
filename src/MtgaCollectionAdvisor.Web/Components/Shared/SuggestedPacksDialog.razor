@@ -33,7 +33,13 @@
                 <section class="pack">
                     <div class="pack-header">
                         <span class="pack-rank">@(i + 1)</span>
-                        <span class="pack-name">@pack.SetName</span>
+                        @* The set's symbol, in the text colour of either theme; nothing when the set
+                           isn't known or the image doesn't load. *@
+                        @if (PackSets.IconUrl(pack.SetCode) is { } icon)
+                        {
+                            <span class="set-icon" style="--set-icon: url('@icon')" aria-hidden="true"></span>
+                        }
+                        <span class="pack-name pack-name-hover" tabindex="0" title="Cards this pack can give">@pack.SetName</span>
                         <span class="pack-code">@pack.SetCode</span>
                         <span class="pack-counts">
                             @foreach (var (rarity, label, css) in Rarities)
@@ -46,6 +52,17 @@
                             }
                         </span>
                     </div>
+                    @* Hovering the set's name opens what the pack can give, rarest first: a strip
+                       in the flow of the dialog, so its scrolling never clips it. *@
+                    @if (pack.Cards.Any(c => c.ImageUrl is not null))
+                    {
+                        <div class="pack-preview" role="tooltip">
+                            @foreach (var card in pack.Cards.Where(c => c.ImageUrl is not null).Take(PreviewCards))
+                            {
+                                <img src="@card.ImageUrl" alt="@card.Name" title="@card.Name" loading="lazy" />
+                            }
+                        </div>
+                    }
                     @foreach (var card in pack.Cards)
                     {
                         @RenderCard(card)
@@ -79,6 +96,9 @@
     [Parameter] public bool Failed { get; set; }
 
     [Parameter, EditorRequired] public EventCallback OnClose { get; set; }
+
+    // Enough to recognise a pack by what it gives, few enough to stay one row.
+    private const int PreviewCards = 6;
 
     private static readonly (CardRarity Rarity, string Label, string Css)[] Rarities =
     [

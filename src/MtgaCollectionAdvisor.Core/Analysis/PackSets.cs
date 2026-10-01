@@ -21,6 +21,14 @@ public static class PackSets
         "ltr", "mh3",               // Scryfall's draft_innovation
     };
 
+    /// <summary>
+    /// The set's symbol on Scryfall's image CDN (no rate limit), for a listed set; null otherwise,
+    /// and the dialog then shows none. Checked for every listed code against Scryfall's
+    /// <c>icon_svg_uri</c>: it is always <c>svgs.scryfall.io/sets/{code}.svg</c>.
+    /// </summary>
+    public static string? IconUrl(string? setCode) =>
+        setCode?.ToLowerInvariant() is { } code && Codes.Contains(code) ? $"https://svgs.scryfall.io/sets/{code}.svg" : null;
+
     /// <summary>A printing a pack can give: its set is on the list, and it isn't a rebalanced Alchemy card.</summary>
     public static bool HasPacks(CardInfo printing) =>
         Codes.Contains(printing.SetCode.ToLowerInvariant())

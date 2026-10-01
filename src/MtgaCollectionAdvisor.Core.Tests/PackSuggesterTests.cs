@@ -197,6 +197,19 @@ public sealed class PackSuggesterTests
         Assert.Equal(expected, PackSets.HasPacks(new CardInfo(1, "Card", set, "{1}", "R", CardRarity.Rare, true, true)));
     }
 
+    [Theory]
+    [InlineData("fra", "https://svgs.scryfall.io/sets/fra.svg")]
+    [InlineData("FRA", "https://svgs.scryfall.io/sets/fra.svg")]
+    [InlineData("mh3", "https://svgs.scryfall.io/sets/mh3.svg")]
+    [InlineData("j25", null)] // not a pack set: no symbol
+    [InlineData("tmp", null)]
+    [InlineData("", null)]
+    [InlineData(null, null)]
+    public void IconUrl_is_the_scryfall_symbol_of_a_pack_set_only(string? set, string? expected)
+    {
+        Assert.Equal(expected, PackSets.IconUrl(set));
+    }
+
     [Fact]
     public void The_pack_set_list_is_lower_case_and_complete()
     {

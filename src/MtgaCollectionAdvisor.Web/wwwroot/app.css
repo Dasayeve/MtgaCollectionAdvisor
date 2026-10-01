@@ -971,6 +971,38 @@ input[type="checkbox"], input[type="range"] { accent-color: var(--text); }
 }
 .pack-rank { color: var(--text-muted); font-variant-numeric: tabular-nums; }
 .pack-name { font-weight: 600; }
+
+.pack-name-hover {
+    cursor: default;
+    text-decoration: underline dotted var(--text-faint);
+    text-underline-offset: 3px;
+}
+
+/* What a pack can give, shown while its name is hovered or focused: whole cards, scaled
+   proportionally, as Scryfall's rules ask. */
+.pack-preview { display: none; gap: 6px; flex-wrap: wrap; margin: var(--space-2) 0; }
+.pack:has(.pack-name-hover:hover) .pack-preview,
+.pack:has(.pack-name-hover:focus-visible) .pack-preview { display: flex; }
+.pack-preview img {
+    display: block;
+    width: 108px;
+    height: auto;
+    aspect-ratio: 488 / 680;
+    border-radius: 6px;
+    background: var(--surface-raised);
+}
+
+/* The set symbol from Scryfall, used as a mask so it takes the text colour in both themes. An
+   image that fails to load masks everything out: the space stays empty, never a broken icon. */
+.set-icon {
+    align-self: center;
+    flex: none;
+    width: 18px;
+    height: 18px;
+    background-color: var(--text);
+    -webkit-mask: var(--set-icon) center / contain no-repeat;
+    mask: var(--set-icon) center / contain no-repeat;
+}
 .pack-code { color: var(--text-muted); font-size: 12px; }
 .pack-counts { display: flex; gap: var(--space-2); margin-left: auto; }
 .pack-also { display: block; color: var(--text-muted); font-size: 12px; }
