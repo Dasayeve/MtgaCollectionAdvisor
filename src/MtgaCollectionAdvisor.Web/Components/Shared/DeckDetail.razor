@@ -1,3 +1,4 @@
+@using MtgaCollectionAdvisor.Core.Analysis
 @using MtgaCollectionAdvisor.Core.Creators
 @using MtgaCollectionAdvisor.Core.Models
 @inject AdvisorSession Session
@@ -36,6 +37,12 @@
                    and the page opened in their own browser; the app never reads its prices. *@
                 <button title="Copia a lista (sem terrenos básicos) e abre a Liga Magic no seu navegador para colar com Ctrl+V"
                         @onclick="() => OnQuote.InvokeAsync(Shown)">@(QuoteStatus ?? "Cotar na Liga Magic")</button>
+            }
+            @if (Session.PacksAvailable && HasCardsFromPacks)
+            {
+                @* #84: which packs would get this deck the most of what it is missing. *@
+                <button title="The sets whose packs can give the cards this deck is missing, the most rares and mythics first"
+                        @onclick="OpenPacksAsync">See suggested packs</button>
             }
             @if (Deck.Deck.IsUserDeck)
             {
@@ -89,6 +96,11 @@
     </div>
 </div>
 
+@if (_showPacks)
+{
+    <SuggestedPacksDialog DeckName="@Deck.Deck.Name" Suggestion="_packs" Failed="_packsFailed" OnClose="() => _showPacks = false" />
+}
+
 @code {
     [Parameter, EditorRequired] public DeckAnalysisResult Deck { get; set; } = null!;
 
@@ -107,6 +119,23 @@
 
     private bool _excludeLands;
     private string? _deckId;
+    private bool _showPacks;
+    private PackSuggestion? _packs;
+    private bool _packsFailed;
+
+    // A card a pack could give: missing, on Arena, and not a basic land.
+    private bool HasCardsFromPacks =>
+        Shown.Gaps.Any(g => g.Missing > 0 && g.AvailableOnArena && g.Rarity != CardRarity.Basic);
+
+    // Worked out on the click, on the list as shown, like Copy for Arena (#84).
+    private async Task OpenPacksAsync()
+    {
+        _packs = null;
+        _packsFailed = false;
+        _showPacks = true;
+        _packs = await Session.SuggestPacksAsync(Shown);
+        _packsFailed = _packs is null;
+    }
 
     // No memory (#61): opening another deck shows its original cost again.
     protected override void OnParametersSet()
@@ -114,6 +143,7 @@
         if (_deckId == Deck.Deck.SourceId) return;
         _deckId = Deck.Deck.SourceId;
         _excludeLands = false;
+        _showPacks = false;
     }
 
     /// <summary>What the panel shows and exports: the deck, or the deck without non-basic lands.</summary>

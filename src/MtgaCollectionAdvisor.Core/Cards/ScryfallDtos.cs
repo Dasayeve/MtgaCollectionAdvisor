@@ -46,6 +46,10 @@ internal sealed class ScryfallCard
     [JsonPropertyName("set")] public string Set { get; set; } = "";
     [JsonPropertyName("collector_number")] public string CollectorNumber { get; set; } = "";
 
+    /// <summary>The set's name and (paper) release date, on every card: no /sets call is needed (#84).</summary>
+    [JsonPropertyName("set_name")] public string? SetName { get; set; }
+    [JsonPropertyName("released_at")] public string? ReleasedAt { get; set; }
+
     /// <summary>Where the print exists: "paper", "arena", "mtgo". A new set's Arena prints list "arena" before they get an arena_id (#101).</summary>
     [JsonPropertyName("games")] public List<string>? Games { get; set; }
     [JsonPropertyName("type_line")] public string TypeLine { get; set; } = "";

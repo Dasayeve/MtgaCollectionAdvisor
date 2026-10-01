@@ -143,6 +143,11 @@ the Windows setting and once for the player's pick.
 `GetUserDefaultGeoName`) and the regional format, the only one `RegionInfo.CurrentRegion`
 follows. They often differ; `WindowsRegion` reads both.
 
+**A preview inside a dialog is cut at its edges** (#84): `.modal-panel` scrolls, and an
+absolutely positioned popover in it is clipped with no sign of why. Inside a dialog, card and pack
+previews are `position: fixed`, and a small script in `App.razor` places each beside the name
+under the mouse. A new popover in a dialog needs the same, or it gets cut off.
+
 **Report progress synchronously when a final status follows.** `Progress<T>` posts each
 report to run later, so the last "Reading deck 150…" can land after the summary line and
 overwrite it in the status bar. `AdvisorSession` has an `ImmediateProgress` for this.
@@ -326,6 +331,13 @@ are not flagged `IsRebalanced` in the file. A failed read never fails an import.
 is remembered, so Arena needn't run, and a new file (a new hash) with unknown ids triggers one import.
 Scryfall publishing the ids later triggers nothing: the Arena-built cards stay until the next
 import, so set `refreshCardsAfter` once Scryfall has the new set's `arena_id`s.
+
+**Which sets sell packs on Arena is a fixed list** (`PackSets`, #84), from Wizards'
+[drop-rates page](https://magic.wizards.com/en/mtgarena/drop-rates): add a new set's Scryfall code when
+it reaches Arena. Nothing in the card data can say it. Scryfall's `booster` flag is empty for a new
+set (all of Reality Fracture read `false` after its release). Its `set_type` matches Jumpstart (J25,
+794 Arena cards), bonus sheets (The Big Score), and old reprints that have no packs. Alchemy packs
+are left out: the app has no Alchemy format. A card with no printing in the list counts for no pack.
 
 **Every network call gets a ceiling per install before it gets code** (#89): how often in the
 worst case (restarts, retries), held across restarts by storing the times, and "no news" on

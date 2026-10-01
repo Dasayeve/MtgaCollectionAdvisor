@@ -51,6 +51,14 @@ public static class CardSourceMerge
             .GroupBy(p => p.Set, p => p.print)
             .ToDictionary(g => g.Key, g => SetLegality.Of(g.ToList()));
 
+        // The same prints name the set and date its missing card takes (#84): Plan for All
+        // Outcomes is suggested with Reality Fracture's packs, not left without a set.
+        var setInfo = scryfallWithoutId.Values
+            .SelectMany(prints => prints)
+            .Where(print => print.SetName is not null)
+            .GroupBy(print => print.SetCode.ToLowerInvariant())
+            .ToDictionary(g => g.Key, g => (Name: g.First().SetName, ReleasedAt: g.First().SetReleasedAt));
+
         int matched = 0, arenaOnly = 0;
         foreach (var card in arena)
         {
@@ -68,6 +76,7 @@ public static class CardSourceMerge
                     && setLegality.TryGetValue(set, out var ofSet)
                     ? ofSet
                     : SetLegality.None;
+                var info = setInfo.GetValueOrDefault(set);
                 cards.Add(new CardInfo(
                     GrpId: card.GrpId,
                     Name: card.Name,
@@ -79,7 +88,9 @@ public static class CardSourceMerge
                     PioneerLegal: legal.Pioneer,
                     IsNonBasicLand: card.IsNonBasicLand,
                     BrawlLegal: legal.Brawl,
-                    StandardBrawlLegal: legal.StandardBrawl));
+                    StandardBrawlLegal: legal.StandardBrawl,
+                    SetName: info.Name,
+                    SetReleasedAt: info.ReleasedAt));
                 arenaOnly++;
             }
         }
