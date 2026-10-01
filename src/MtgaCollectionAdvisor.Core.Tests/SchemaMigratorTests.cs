@@ -83,6 +83,7 @@ public sealed class SchemaMigratorTests : IDisposable
     [InlineData("schema-v7.sql")]
     [InlineData("schema-v8.sql")]
     [InlineData("schema-v10.sql")]
+    [InlineData("schema-v11.sql")]
     public async Task MigrateAsync_Should_KeepUserData_When_Upgrading(string fixture)
     {
         await CreateFromFixtureAsync(fixture);
@@ -173,6 +174,7 @@ public sealed class SchemaMigratorTests : IDisposable
     [InlineData("schema-v7.sql")]
     [InlineData("schema-v8.sql")]
     [InlineData("schema-v10.sql")]
+    [InlineData("schema-v11.sql")]
     public async Task MigrateAsync_Should_ProduceSameSchema_As_FreshDatabase(string fixture)
     {
         var freshPath = Path.Combine(_directory, "fresh.db");
