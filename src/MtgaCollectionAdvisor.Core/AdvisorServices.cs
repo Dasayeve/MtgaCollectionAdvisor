@@ -30,6 +30,7 @@ public sealed class AdvisorServices : IAsyncDisposable
     public ArenaDeckStore ArenaDeckStore { get; }
     public DataExportService DataExportService { get; }
     public DeckRankingService DeckRankingService { get; }
+    public PackSuggestionService PackSuggestionService { get; }
     public PlayerLogWatcher PlayerLogWatcher { get; }
     public HttpClient ScryfallHttpClient { get; }
     public ScryfallBulkImporter ScryfallBulkImporter { get; }
@@ -61,6 +62,7 @@ public sealed class AdvisorServices : IAsyncDisposable
         ArenaDeckStore = new ArenaDeckStore(Database);
         DataExportService = new DataExportService(CollectionStore, CardDatabaseStore, CuratedDeckStore, ArenaDeckStore);
         DeckRankingService = new DeckRankingService(new WildcardCalculator(CardDatabaseStore));
+        PackSuggestionService = new PackSuggestionService(CardDatabaseStore);
         PlayerLogWatcher = new PlayerLogWatcher(config.PlayerLogPathOverride);
 
         ScryfallHttpClient = ScryfallBulkImporter.CreateHttpClient();

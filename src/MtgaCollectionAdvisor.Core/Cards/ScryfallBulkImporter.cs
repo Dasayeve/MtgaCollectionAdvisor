@@ -123,7 +123,10 @@ public sealed class ScryfallBulkImporter(HttpClient httpClient)
             StandardBrawlLegal: card.IsLegal(Formats.StandardBrawl.ScryfallLegalityKey),
             ImageUrl: image,
             BackImageUrl: backImage,
-            IsNonBasicLand: card.IsNonBasicLand());
+            IsNonBasicLand: card.IsNonBasicLand(),
+            SetName: string.IsNullOrWhiteSpace(card.SetName) ? null : card.SetName,
+            SetReleasedAt: DateOnly.TryParseExact(card.ReleasedAt, "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture,
+                System.Globalization.DateTimeStyles.None, out var released) ? released : null);
     }
 
     private static CardRarity MapRarity(ScryfallCard card)

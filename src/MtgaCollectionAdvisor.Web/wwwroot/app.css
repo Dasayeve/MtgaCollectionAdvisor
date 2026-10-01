@@ -955,6 +955,26 @@ input[type="checkbox"], input[type="range"] { accent-color: var(--text); }
 .modal-actions { display: flex; justify-content: flex-end; gap: var(--space-2); margin-top: var(--space-4); }
 
 /* A maintainer notice (#96): a short message, so a narrower panel. No colour of its own. */
+/* Suggested packs (#84): one section per set, the order PackSuggester picked. No colour of its
+   own beyond the rarity tokens the deck list already uses. */
+.packs-panel { width: min(720px, 100%); position: relative; }
+.packs-panel h2 { padding-right: var(--space-6); }
+.pack { margin-top: var(--space-4); }
+.pack-header {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    padding-bottom: var(--space-1);
+    border-bottom: 1px solid var(--border);
+    margin-bottom: var(--space-1);
+}
+.pack-rank { color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.pack-name { font-weight: 600; }
+.pack-code { color: var(--text-muted); font-size: 12px; }
+.pack-counts { display: flex; gap: var(--space-2); margin-left: auto; }
+.pack-also { display: block; color: var(--text-muted); font-size: 12px; }
+
 .notice-panel { width: min(460px, 100%); position: relative; }
 .notice-panel h2 { padding-right: var(--space-6); }
 

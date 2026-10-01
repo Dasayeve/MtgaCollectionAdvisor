@@ -134,6 +134,22 @@ public sealed class CardSourceMergeTests
     }
 
     [Fact]
+    public void Merge_gives_an_Arena_only_card_its_sets_name_and_date()
+    {
+        // #84: Plan for All Outcomes, which Scryfall lacks, is suggested with Reality Fracture's packs.
+        var prints = new Dictionary<(string, string), IReadOnlyList<CardInfo>>
+        {
+            [CardSourceMerge.Key("fra", "3")] = [AngelPrint with { SetName = "Reality Fracture", SetReleasedAt = new DateOnly(2026, 10, 2) }],
+        };
+
+        var merge = CardSourceMerge.Merge([Sheoldred], prints, [Arena(106261, "Plan for All Outcomes", "FRA", "61")]);
+
+        var plan = merge.Cards.Single(c => c.GrpId == 106261);
+        Assert.Equal("Reality Fracture", plan.SetName);
+        Assert.Equal(new DateOnly(2026, 10, 2), plan.SetReleasedAt);
+    }
+
+    [Fact]
     public void An_Arena_only_card_of_a_set_nobody_lists_is_legal_nowhere()
     {
         var merge = CardSourceMerge.Merge([Sheoldred], new Dictionary<(string, string), IReadOnlyList<CardInfo>>(),

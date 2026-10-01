@@ -194,6 +194,14 @@ public static class Migrations
                 dismissed_at  TEXT NOT NULL
             );
             """),
+
+        // The set's name and release date per printing (#84: suggested packs; #107 uses the date
+        // to find a card's first set). NULL until the automatic re-import fills them
+        // (CardDatabaseStore.NeedsCardDataBackfill), like the columns of migrations 3, 4, 6 and 7.
+        new(11, "Set name and date", """
+            ALTER TABLE cards ADD COLUMN set_name TEXT;
+            ALTER TABLE cards ADD COLUMN set_released_at TEXT;
+            """),
     ];
 
     public static int Latest => All[^1].Version;

@@ -73,6 +73,7 @@ public sealed partial class AdvisorSession(AppConfig config, ILogger<AdvisorSess
         }
 
         CardsUpdatedAt = await services.CardDatabaseStore.GetLastImportedAsync();
+        await RefreshPacksAvailableAsync();
         services.PlayerLogWatcher.InventoryUpdated += OnWildcardsUpdated;
         services.PlayerLogWatcher.DetailedLogsReported += OnDetailedLogsReported;
         services.PlayerLogWatcher.WatchError += ex => log.LogWarning(ex, "Reading Player.log failed");
@@ -208,6 +209,7 @@ public sealed partial class AdvisorSession(AppConfig config, ILogger<AdvisorSess
                 counts.MatchedByNumber + counts.ArenaOnly, counts.MatchedByNumber, counts.ArenaOnly);
         }
         CardsUpdatedAt = await services.CardDatabaseStore.GetLastImportedAsync();
+        await RefreshPacksAvailableAsync(); // a re-import is what fills set names (#84)
         var fromArena = result.Arena is { } arena ? arena.MatchedByNumber + arena.ArenaOnly : 0;
         report(fromArena > 0
             ? $"Card database updated, with {fromArena} new cards from MTG Arena."

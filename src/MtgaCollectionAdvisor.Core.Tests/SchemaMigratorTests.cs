@@ -50,6 +50,7 @@ public sealed class SchemaMigratorTests : IDisposable
         [8] = "50ACDADEB72AECCCF2DFAEB0278D914458F202B4C068DCE1E8B43BA5AA2EA7AF",
         [9] = "603F46E3D4FFAE4D88EE3C6C074F8FF2663B8C3B0C5DD1ED0FED1ACD1FB427EF",
         [10] = "F000FA07555A8532EB403DF884BA51D87489310DE187031703A003164FAEBCDD",
+        [11] = "BEA02A06F516BF0C5FC619AF86598ACB733460D7EFE7BB6734D1A26D65A1C836",
     };
 
     [Fact]
@@ -129,6 +130,18 @@ public sealed class SchemaMigratorTests : IDisposable
         await SchemaMigrator.MigrateAsync(new Database(_databasePath));
 
         Assert.Equal(["reality-fracture-cards"], await ColumnAsync("SELECT id FROM dismissed_notices"));
+    }
+
+    [Fact]
+    public async Task Migration11_Should_AddTheSetColumns()
+    {
+        await CreateFromFixtureAsync("schema-v10.sql");
+
+        await SchemaMigrator.MigrateAsync(new Database(_databasePath));
+
+        // Added empty: the one-time re-import fills them (NeedsCardDataBackfill).
+        Assert.Equal(["2|0|0"], await ColumnAsync(
+            "SELECT count(*) || '|' || count(set_name) || '|' || count(set_released_at) FROM cards"));
     }
 
     [Fact]

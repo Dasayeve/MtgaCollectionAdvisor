@@ -1,0 +1,123 @@
+@using MtgaCollectionAdvisor.Core.Analysis
+@using MtgaCollectionAdvisor.Core.Models
+
+@* Suggested packs (#84): the sets whose packs can give the cards a deck is missing, in the order
+   PackSuggester picks them. It says where the cards are, never what a pack will contain. *@
+<div class="modal-backdrop" @onclick="OnClose">
+    <div class="modal-panel packs-panel" role="dialog" aria-modal="true" aria-labelledby="packs-title" @onclick:stopPropagation>
+        <button class="modal-close" title="Close" aria-label="Close" @onclick="OnClose">
+            <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
+                <path d="M3.5 3.5l9 9M12.5 3.5l-9 9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" />
+            </svg>
+        </button>
+        <h2 id="packs-title">Suggested packs — @DeckName</h2>
+        <p class="hint">Sets whose packs can give the cards this deck is missing, the most rares and mythics first. A pack doesn't guarantee them.</p>
+
+        @if (Failed)
+        {
+            <p class="hint">The card database couldn't be read. The reason is in the log (Logs, in the status bar).</p>
+        }
+        else if (Suggestion is null)
+        {
+            <p class="hint">Looking through the card database…</p>
+        }
+        else if (Suggestion.Packs.Count == 0 && Suggestion.WildcardsOnly.Count == 0)
+        {
+            <p class="hint">Nothing to suggest: this deck isn't missing a card a pack can give.</p>
+        }
+        else
+        {
+            @for (var i = 0; i < Suggestion.Packs.Count; i++)
+            {
+                var pack = Suggestion.Packs[i];
+                <section class="pack">
+                    <div class="pack-header">
+                        <span class="pack-rank">@(i + 1)</span>
+                        <span class="pack-name">@pack.SetName</span>
+                        <span class="pack-code">@pack.SetCode</span>
+                        <span class="pack-counts">
+                            @foreach (var (rarity, label, css) in Rarities)
+                            {
+                                var copies = pack.Copies(rarity);
+                                if (copies > 0)
+                                {
+                                    <span class="card-need @css" title="@copies missing @label @(copies == 1 ? "copy" : "copies")">@copies @label</span>
+                                }
+                            }
+                        </span>
+                    </div>
+                    @foreach (var card in pack.Cards)
+                    {
+                        @RenderCard(card)
+                    }
+                </section>
+            }
+
+            @if (Suggestion.WildcardsOnly.Count > 0)
+            {
+                <section class="pack">
+                    <div class="pack-header">
+                        <span class="pack-name">Only with wildcards</span>
+                        <span class="hint">No pack on Arena gives these: craft them.</span>
+                    </div>
+                    @foreach (var card in Suggestion.WildcardsOnly)
+                    {
+                        @RenderCard(card)
+                    }
+                </section>
+            }
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public string DeckName { get; set; } = "";
+
+    /// <summary>Null while it is being worked out.</summary>
+    [Parameter] public PackSuggestion? Suggestion { get; set; }
+
+    [Parameter] public bool Failed { get; set; }
+
+    [Parameter, EditorRequired] public EventCallback OnClose { get; set; }
+
+    private static readonly (CardRarity Rarity, string Label, string Css)[] Rarities =
+    [
+        (CardRarity.Mythic, "mythic", "m"),
+        (CardRarity.Rare, "rare", "r"),
+        (CardRarity.Uncommon, "uncommon", "u"),
+        (CardRarity.Common, "common", "c"),
+    ];
+
+    private RenderFragment RenderCard(PackCard card) => @<div class="card-row missing">
+        <span class="card-qty">@card.Missing</span>
+        <span class="card-name">
+            @if (card.ImageUrl is { } front)
+            {
+                <span class="card-name-hover" tabindex="0">@card.Name
+                    <span class="card-preview" role="tooltip">
+                        <img src="@front" alt="@card.Name" loading="lazy" width="244" />
+                        @if (card.BackImageUrl is { } back)
+                        {
+                            <img src="@back" alt="@($"{card.Name}, back face")" loading="lazy" width="244" />
+                        }
+                    </span>
+                </span>
+            }
+            else
+            {
+                @card.Name
+            }
+            @if (card.AlsoIn.Count > 0)
+            {
+                <span class="pack-also">Also in: @string.Join(", ", card.AlsoIn)</span>
+            }
+        </span>
+        <span class="card-need @RarityClass(card.Rarity)">@RarityName(card.Rarity)</span>
+    </div>;
+
+    private static string RarityClass(CardRarity rarity) =>
+        Rarities.FirstOrDefault(r => r.Rarity == rarity).Css ?? "";
+
+    private static string RarityName(CardRarity rarity) =>
+        Rarities.FirstOrDefault(r => r.Rarity == rarity).Label ?? "";
+}

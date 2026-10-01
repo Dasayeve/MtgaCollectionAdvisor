@@ -327,6 +327,13 @@ is remembered, so Arena needn't run, and a new file (a new hash) with unknown id
 Scryfall publishing the ids later triggers nothing: the Arena-built cards stay until the next
 import, so set `refreshCardsAfter` once Scryfall has the new set's `arena_id`s.
 
+**Which sets sell packs on Arena is a fixed list** (`PackSets`, #84), from Wizards'
+[drop-rates page](https://magic.wizards.com/en/mtgarena/drop-rates): add a new set's Scryfall code when
+it reaches Arena. Nothing in the card data can say it. Scryfall's `booster` flag is empty for a new
+set (all of Reality Fracture read `false` after its release). Its `set_type` matches Jumpstart (J25,
+794 Arena cards), bonus sheets (The Big Score), and old reprints that have no packs. Alchemy packs
+are left out: the app has no Alchemy format. A card with no printing in the list counts for no pack.
+
 **Every network call gets a ceiling per install before it gets code** (#89): how often in the
 worst case (restarts, retries), held across restarts by storing the times, and "no news" on
 failure, never a retry loop. A player's app that meets a provider's rate limit looks broken
