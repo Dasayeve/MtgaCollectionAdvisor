@@ -15,7 +15,8 @@ public sealed record CardGap(
     CardRarity Rarity,
     string? ImageUrl = null,
     string? BackImageUrl = null,
-    bool IsNonBasicLand = false)
+    bool IsNonBasicLand = false,
+    double? ManaValue = null)
 {
     public int Missing => Math.Max(0, Needed - Owned);
     public bool AvailableOnArena => GrpId is not null;

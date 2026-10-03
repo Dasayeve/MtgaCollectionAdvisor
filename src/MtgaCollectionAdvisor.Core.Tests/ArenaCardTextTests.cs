@@ -21,6 +21,31 @@ public sealed class ArenaCardTextTests
         Assert.Equal(expected, ArenaCardText.ManaCost(arena));
     }
 
+    // #110: Scryfall's cmc for the cards Scryfall doesn't have yet.
+    [Theory]
+    [InlineData("{2}{R}", 3)]
+    [InlineData("{X}{R}", 1)]
+    [InlineData("{X}{X}{G}", 1)]
+    [InlineData("{2/W}{2/W}", 4)]
+    [InlineData("{G/W}", 1)]
+    [InlineData("{U/P}", 1)]
+    [InlineData("{10}", 10)]
+    [InlineData("{8}{C}{C}", 10)]
+    [InlineData("", 0)]
+    public void ManaValue_sums_the_symbols(string cost, double expected)
+    {
+        Assert.Equal(expected, ArenaCardText.ManaValue(cost));
+    }
+
+    // Arena writes a Room's two doors as one cost, and an adventure's main card alone.
+    [Theory]
+    [InlineData("o2oBo3oBoB", 8)] // Unholy Annex // Ritual Chamber
+    [InlineData("o2oR", 3)]       // Bonecrusher Giant // Stomp
+    public void ManaValue_of_an_Arena_cost_is_the_cards(string arena, double expected)
+    {
+        Assert.Equal(expected, ArenaCardText.ManaValue(ArenaCardText.ManaCost(arena)));
+    }
+
     [Theory]
     [InlineData("<nobr>Blossom-Blessed</nobr> Angel", "Blossom-Blessed Angel")]
     [InlineData("Emrakul, the Exigent Doom", "Emrakul, the Exigent Doom")]

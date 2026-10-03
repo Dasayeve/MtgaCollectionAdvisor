@@ -66,13 +66,14 @@
             {
                 @* A Brawl deck's commander (#76), apart from the 99 as Arena shows it. *@
                 <div class="card-list-title">Commander</div>
-                @foreach (var gap in Shown.Gaps.Where(g => g.Board == DeckBoard.Commander).OrderBy(g => g.CardName))
+                @foreach (var gap in DeckListOrder.Order(Shown.Gaps.Where(g => g.Board == DeckBoard.Commander)))
                 {
                     @RenderCardRow(gap)
                 }
             }
+            @* By the deck's curve (#110): spells by mana value, then non-basic lands, then basics. *@
             <div class="card-list-title">Mainboard</div>
-            @foreach (var gap in Shown.Gaps.Where(g => g.Board == DeckBoard.Main).OrderBy(g => g.CardName))
+            @foreach (var gap in DeckListOrder.Order(Shown.Gaps.Where(g => g.Board == DeckBoard.Main)))
             {
                 @RenderCardRow(gap)
             }
@@ -82,7 +83,7 @@
         {
             <div>
                 <div class="card-list-title">Sideboard</div>
-                @foreach (var gap in Shown.Gaps.Where(g => g.Board == DeckBoard.Sideboard).OrderBy(g => g.CardName))
+                @foreach (var gap in DeckListOrder.Order(Shown.Gaps.Where(g => g.Board == DeckBoard.Sideboard)))
                 {
                     @RenderCardRow(gap)
                 }

@@ -54,6 +54,9 @@ internal sealed class ScryfallCard
     [JsonPropertyName("games")] public List<string>? Games { get; set; }
     [JsonPropertyName("type_line")] public string TypeLine { get; set; } = "";
     [JsonPropertyName("mana_cost")] public string? ManaCost { get; set; }
+
+    /// <summary>The mana value: both halves of a split card, the front of an adventure or MDFC (#110).</summary>
+    [JsonPropertyName("cmc")] public double? Cmc { get; set; }
     [JsonPropertyName("colors")] public List<string>? Colors { get; set; }
     [JsonPropertyName("rarity")] public string Rarity { get; set; } = "";
     [JsonPropertyName("legalities")] public Dictionary<string, string> Legalities { get; set; } = [];

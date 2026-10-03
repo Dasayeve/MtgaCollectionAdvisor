@@ -149,26 +149,36 @@ public sealed class CardNameResolutionTests : IAsyncLifetime
     // legality) has cards and that column empty everywhere: the app re-imports once on its own.
     // Only then; a partly filled or empty database is left alone.
     [Theory]
-    [InlineData(19977, 0, 19977, 19977, 19977, 19977, true)]
-    [InlineData(19977, 19977, 0, 19977, 19977, 19977, true)]
-    [InlineData(19977, 19977, 19977, 0, 19977, 19977, true)]
-    [InlineData(19977, 19977, 19977, 19977, 0, 19977, true)]
-    [InlineData(19977, 19977, 19977, 19977, 19977, 0, true)] // #84: set names
-    [InlineData(19977, 19977, 19977, 19977, 19977, 19977, false)]
-    [InlineData(19977, 3, 5, 7, 9, 11, false)]
-    [InlineData(0, 0, 0, 0, 0, 0, false)]
+    [InlineData(19977, 0, 19977, 19977, 19977, 19977, 19977, true)]
+    [InlineData(19977, 19977, 0, 19977, 19977, 19977, 19977, true)]
+    [InlineData(19977, 19977, 19977, 0, 19977, 19977, 19977, true)]
+    [InlineData(19977, 19977, 19977, 19977, 0, 19977, 19977, true)]
+    [InlineData(19977, 19977, 19977, 19977, 19977, 0, 19977, true)] // #84: set names
+    [InlineData(19977, 19977, 19977, 19977, 19977, 19977, 0, true)] // #110: mana value
+    [InlineData(19977, 19977, 19977, 19977, 19977, 19977, 19977, false)]
+    [InlineData(19977, 3, 5, 7, 9, 11, 13, false)]
+    [InlineData(0, 0, 0, 0, 0, 0, 0, false)]
     public void NeedsCardDataBackfill_Should_AskWhenAnyColumnIsEmptyEverywhere(
-        int cards, int withImage, int withLandFlag, int withBrawl, int withStandardBrawl, int withSetName, bool expected)
+        int cards, int withImage, int withLandFlag, int withBrawl, int withStandardBrawl, int withSetName, int withManaValue,
+        bool expected)
     {
         Assert.Equal(expected, CardDatabaseStore.NeedsCardDataBackfill(
-            new CardDataCounts(cards, withImage, withLandFlag, withBrawl, withStandardBrawl, withSetName)));
+            new CardDataCounts(cards, withImage, withLandFlag, withBrawl, withStandardBrawl, withSetName, withManaValue)));
     }
 
     [Fact]
     public async Task CountCardDataAsync_Should_CountEachColumn()
     {
         // Brawl legalities are always written by an import (0 or 1), so every card has them.
-        Assert.Equal(new CardDataCounts(9, 1, 2, 9, 9, 0), await _store.CountCardDataAsync());
+        Assert.Equal(new CardDataCounts(9, 1, 2, 9, 9, 0, 1), await _store.CountCardDataAsync());
+    }
+
+    // #110: the mana value survives the round trip; a card from before migration 12 reads as unknown.
+    [Fact]
+    public async Task CardStore_Should_RoundTripManaValue()
+    {
+        Assert.Equal(1, Assert.Single(await _store.FindByNameAsync("Shock")).ManaValue);
+        Assert.Null(Assert.Single(await _store.FindByNameAsync("Fireball")).ManaValue);
     }
 
     // #61: the flag survives the round trip; a card from before migration 4 reads as unknown.
@@ -220,7 +230,7 @@ public sealed class CardNameResolutionTests : IAsyncLifetime
         yield return Card(86952, "Mosswood Dreadknight // Dread Whispers");
         yield return Card(1, "Lightning Bolt");
         yield return Card(2, "Lightning Bolt");
-        yield return Card(3, "Shock");
+        yield return Card(3, "Shock") with { ManaValue = 1 };
         yield return Card(4, "Fire // Ice");
         yield return Card(5, "Fireball");
         yield return Card(6, "Fire Ants");

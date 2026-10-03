@@ -90,7 +90,8 @@ public static class CardSourceMerge
                     BrawlLegal: legal.Brawl,
                     StandardBrawlLegal: legal.StandardBrawl,
                     SetName: info.Name,
-                    SetReleasedAt: info.ReleasedAt));
+                    SetReleasedAt: info.ReleasedAt,
+                    ManaValue: ArenaCardText.ManaValue(card.ManaCost)));
                 arenaOnly++;
             }
         }

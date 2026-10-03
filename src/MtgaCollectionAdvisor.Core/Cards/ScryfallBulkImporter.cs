@@ -126,7 +126,8 @@ public sealed class ScryfallBulkImporter(HttpClient httpClient)
             IsNonBasicLand: card.IsNonBasicLand(),
             SetName: string.IsNullOrWhiteSpace(card.SetName) ? null : card.SetName,
             SetReleasedAt: DateOnly.TryParseExact(card.ReleasedAt, "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture,
-                System.Globalization.DateTimeStyles.None, out var released) ? released : null);
+                System.Globalization.DateTimeStyles.None, out var released) ? released : null,
+            ManaValue: card.Cmc);
     }
 
     private static CardRarity MapRarity(ScryfallCard card)
