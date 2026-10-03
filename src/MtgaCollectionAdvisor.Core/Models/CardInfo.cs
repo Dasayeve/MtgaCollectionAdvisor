@@ -32,7 +32,8 @@ public sealed record CardInfo(
     bool BrawlLegal = false,
     bool StandardBrawlLegal = false,
     string? SetName = null,
-    DateOnly? SetReleasedAt = null)
+    DateOnly? SetReleasedAt = null,
+    double? ManaValue = null)
 {
     /// <summary>Legal in <paramref name="format"/>, by its key: a new format needs its own column, never another's.</summary>
     public bool IsLegalIn(FormatDefinition format) => format.Key switch

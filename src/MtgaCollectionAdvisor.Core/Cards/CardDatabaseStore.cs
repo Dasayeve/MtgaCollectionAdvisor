@@ -43,10 +43,10 @@ public sealed class CardDatabaseStore(Database database)
             insert.CommandText = """
                 INSERT INTO cards (grp_id, name, set_code, mana_cost, colors, rarity, standard_legal, pioneer_legal, updated_at,
                                    image_url, back_image_url, is_nonbasic_land, brawl_legal, standard_brawl_legal,
-                                   set_name, set_released_at)
+                                   set_name, set_released_at, mana_value)
                 VALUES ($grpId, $name, $setCode, $manaCost, $colors, $rarity, $standard, $pioneer, $updatedAt,
                         $imageUrl, $backImageUrl, $nonBasicLand, $brawl, $standardBrawl,
-                        $setName, $setReleasedAt)
+                        $setName, $setReleasedAt, $manaValue)
                 """;
             var grpId = insert.Parameters.Add("$grpId", SqliteType.Integer);
             var name = insert.Parameters.Add("$name", SqliteType.Text);
@@ -64,6 +64,7 @@ public sealed class CardDatabaseStore(Database database)
             var standardBrawl = insert.Parameters.Add("$standardBrawl", SqliteType.Integer);
             var setName = insert.Parameters.Add("$setName", SqliteType.Text);
             var setReleasedAt = insert.Parameters.Add("$setReleasedAt", SqliteType.Text);
+            var manaValue = insert.Parameters.Add("$manaValue", SqliteType.Real);
 
             foreach (var card in deduped.Values)
             {
@@ -84,6 +85,7 @@ public sealed class CardDatabaseStore(Database database)
                 setReleasedAt.Value = card.SetReleasedAt is { } released
                     ? released.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture)
                     : DBNull.Value;
+                manaValue.Value = (object?)card.ManaValue ?? DBNull.Value;
                 await insert.ExecuteNonQueryAsync(ct);
             }
         }
@@ -112,26 +114,28 @@ public sealed class CardDatabaseStore(Database database)
 
     /// <summary>
     /// A card database imported before a later migration's columns existed (image URLs, #59;
-    /// the non-basic land flag, #61; Brawl and Standard Brawl legality, #76; set names, #84) has cards and nothing in one of those
+    /// the non-basic land flag, #61; Brawl and Standard Brawl legality, #76; set names, #84; mana value, #110) has cards and nothing in one of those
     /// columns: it needs one more import, which the app runs by itself. A migration adds
     /// columns, not data.
     /// </summary>
     public static bool NeedsCardDataBackfill(CardDataCounts counts) =>
         counts.Cards > 0 && (counts.WithImage == 0 || counts.WithLandFlag == 0 || counts.WithBrawlLegality == 0
-                             || counts.WithStandardBrawlLegality == 0 || counts.WithSetName == 0);
+                             || counts.WithStandardBrawlLegality == 0 || counts.WithSetName == 0
+                             || counts.WithManaValue == 0);
 
     public async Task<CardDataCounts> CountCardDataAsync(CancellationToken ct = default)
     {
         await using var connection = await database.OpenAsync(ct);
         await using var command = connection.CreateCommand();
         command.CommandText = """
-            SELECT count(*), count(image_url), count(is_nonbasic_land), count(brawl_legal), count(standard_brawl_legal), count(set_name)
+            SELECT count(*), count(image_url), count(is_nonbasic_land), count(brawl_legal), count(standard_brawl_legal), count(set_name),
+                   count(mana_value)
             FROM cards
             """;
         await using var reader = await command.ExecuteReaderAsync(ct);
         await reader.ReadAsync(ct);
         return new CardDataCounts(reader.GetInt32(0), reader.GetInt32(1), reader.GetInt32(2), reader.GetInt32(3), reader.GetInt32(4),
-            reader.GetInt32(5));
+            reader.GetInt32(5), reader.GetInt32(6));
     }
 
     /// <summary>When Scryfall generated the file of the last import (#89); null if unknown.</summary>
@@ -265,12 +269,12 @@ public sealed class CardDatabaseStore(Database database)
 
     internal const string FindByNameSql = """
         SELECT grp_id, name, set_code, mana_cost, colors, rarity, standard_legal, pioneer_legal, image_url, back_image_url, is_nonbasic_land, brawl_legal, standard_brawl_legal,
-               set_name, set_released_at
+               set_name, set_released_at, mana_value
         FROM cards
         WHERE name = $name COLLATE NOCASE
         UNION ALL
         SELECT grp_id, name, set_code, mana_cost, colors, rarity, standard_legal, pioneer_legal, image_url, back_image_url, is_nonbasic_land, brawl_legal, standard_brawl_legal,
-               set_name, set_released_at
+               set_name, set_released_at, mana_value
         FROM cards
         WHERE name >= $frontFace COLLATE NOCASE AND name < $frontFaceEnd COLLATE NOCASE
         """;
@@ -324,7 +328,8 @@ public sealed class CardDatabaseStore(Database database)
                 SetReleasedAt: !reader.IsDBNull(14) && DateOnly.TryParseExact(reader.GetString(14), "yyyy-MM-dd",
                     System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var released)
                     ? released
-                    : null));
+                    : null,
+                ManaValue: reader.IsDBNull(15) ? null : reader.GetDouble(15)));
         }
         return results;
     }
@@ -332,7 +337,8 @@ public sealed class CardDatabaseStore(Database database)
 
 /// <summary>How many cards the database has, and how many have each column a later migration added.</summary>
 public sealed record CardDataCounts(
-    int Cards, int WithImage, int WithLandFlag, int WithBrawlLegality, int WithStandardBrawlLegality, int WithSetName);
+    int Cards, int WithImage, int WithLandFlag, int WithBrawlLegality, int WithStandardBrawlLegality, int WithSetName,
+    int WithManaValue);
 
 /// <summary>MTG Arena's card database as the last import or check left it (#101); both null before any.</summary>
 public sealed record ArenaSourceState(string? RawFolder, string? Database);

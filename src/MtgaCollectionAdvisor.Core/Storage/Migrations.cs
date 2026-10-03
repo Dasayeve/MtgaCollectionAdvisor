@@ -202,6 +202,12 @@ public static class Migrations
             ALTER TABLE cards ADD COLUMN set_name TEXT;
             ALTER TABLE cards ADD COLUMN set_released_at TEXT;
             """),
+
+        // The mana value (Scryfall's cmc; Arena's cost for Arena-only cards), to list a deck by its
+        // curve (#110). NULL until the automatic re-import fills it (CardDatabaseStore.NeedsCardDataBackfill).
+        new(12, "Mana value", """
+            ALTER TABLE cards ADD COLUMN mana_value REAL;
+            """),
     ];
 
     public static int Latest => All[^1].Version;

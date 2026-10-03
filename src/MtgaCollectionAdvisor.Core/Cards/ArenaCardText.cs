@@ -29,6 +29,28 @@ public static partial class ArenaCardText
     }
 
     /// <summary>
+    /// The mana value of a "{2}{R}" cost (#110): {X} is 0, a number its value, {2/W} 2, any other
+    /// symbol 1. Arena's cost of an adventure is the main card's alone and a Room's both halves,
+    /// so the sum is the card's mana value, as Scryfall's cmc would say.
+    /// </summary>
+    public static double ManaValue(string manaCost)
+    {
+        double total = 0;
+        foreach (Match symbol in CostSymbol().Matches(manaCost))
+        {
+            var text = symbol.Groups[1].Value;
+            total += text switch
+            {
+                "X" or "Y" or "Z" => 0,
+                _ when int.TryParse(text, out var generic) => generic,
+                _ when text.StartsWith("2/", StringComparison.Ordinal) => 2,
+                _ => 1,
+            };
+        }
+        return total;
+    }
+
+    /// <summary>
     /// The name as Scryfall writes it. Arena marks names up for its own display: "&lt;nobr&gt;"
     /// around hyphenated words, a sprite before an Alchemy card, which Scryfall calls "A-Name"
     /// (and which must not become the paper card's name), and "///" between split halves.
@@ -70,6 +92,9 @@ public static partial class ArenaCardText
     // One symbol after each 'o': a hybrid or Phyrexian group in brackets, a number, or a letter.
     [GeneratedRegex(@"o(\([^)]*\)|\d+|[A-Z])")]
     private static partial Regex ManaSymbol();
+
+    [GeneratedRegex(@"\{([^}]*)\}")]
+    private static partial Regex CostSymbol();
 
     [GeneratedRegex(@"<sprite[^>]*name=""arena_a""[^>]*>")]
     private static partial Regex AlchemySprite();

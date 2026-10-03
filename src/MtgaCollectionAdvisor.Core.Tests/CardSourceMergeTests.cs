@@ -69,7 +69,7 @@ public sealed class CardSourceMergeTests
 
         var bolt = merge.Cards.Single(c => c.GrpId == 106500);
         Assert.Equal(new CardInfo(106500, "Fracture Bolt", "fra", "{1}{R}", "R", CardRarity.Rare, true, true,
-            IsNonBasicLand: false, BrawlLegal: true, StandardBrawlLegal: true), bolt);
+            IsNonBasicLand: false, BrawlLegal: true, StandardBrawlLegal: true, ManaValue: 2), bolt);
     }
 
     [Theory]
@@ -156,6 +156,15 @@ public sealed class CardSourceMergeTests
             [Arena(106500, "Fracture Bolt", "FRA", "150")]);
 
         Assert.False(merge.Cards.Single(c => c.GrpId == 106500).StandardLegal);
+    }
+
+    // #110: an Arena-only card has no Scryfall cmc, so its cost gives the mana value.
+    [Fact]
+    public void An_Arena_only_card_takes_its_mana_value_from_its_cost()
+    {
+        var merge = CardSourceMerge.Merge([Sheoldred], FraPrints, [Arena(106500, "Fracture Bolt", "FRA", "150")]);
+
+        Assert.Equal(2, merge.Cards.Single(c => c.GrpId == 106500).ManaValue);
     }
 
     [Fact]
