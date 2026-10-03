@@ -298,6 +298,37 @@
                             </td>
                             <td>
                                 <div class="deck-name">@deck.Deck.Name</div>
+                                @if (deck.Commanders.Count > 0)
+                                {
+                                    @* #113: the commander, which the deck's name often doesn't say. *@
+                                    <div class="deck-commander">
+                                        Commander:
+                                        @for (var i = 0; i < deck.Commanders.Count; i++)
+                                        {
+                                            var commander = deck.Commanders[i];
+                                            @if (i > 0)
+                                            {
+                                                <text> + </text>
+                                            }
+                                            @if (commander.ImageUrl is { } front)
+                                            {
+                                                <span class="commander-name card-name-hover" tabindex="0">@commander.CardName
+                                                    <span class="card-preview" role="tooltip">
+                                                        <img src="@front" alt="@commander.CardName" loading="lazy" width="244" />
+                                                        @if (commander.BackImageUrl is { } back)
+                                                        {
+                                                            <img src="@back" alt="@($"{commander.CardName}, back face")" loading="lazy" width="244" />
+                                                        }
+                                                    </span>
+                                                </span>
+                                            }
+                                            else
+                                            {
+                                                <span class="commander-name">@commander.CardName</span>
+                                            }
+                                        }
+                                    </div>
+                                }
                                 <div class="deck-meta">
                                     @if (deck.Deck.IsUserDeck)
                                     {

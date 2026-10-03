@@ -119,6 +119,9 @@ public sealed record DeckAnalysisResult(
 
     public bool HasNonBasicLands => Gaps.Any(g => g.IsNonBasicLand);
 
+    /// <summary>The commander(s) of a Brawl deck (#113), in the deck's order; empty for any other deck.</summary>
+    public IReadOnlyList<CardGap> Commanders => [.. Gaps.Where(g => g.Board == DeckBoard.Commander)];
+
     /// <summary>
     /// The same deck without its non-basic lands (#61), for pricing a deck before its mana base,
     /// which is often most of its rare wildcards. Cost and owned totals are recomputed the way

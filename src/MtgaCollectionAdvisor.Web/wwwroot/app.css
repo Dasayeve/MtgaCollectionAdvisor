@@ -24,6 +24,7 @@
     --negative: #e98474;
     --warning: #f0954a;
     --pinned: #e8b84a;
+    --commander: #b9a6ec;
     --fresh: #f5d547;
     --fresh-glow: rgba(245, 213, 71, 0.55);
 
@@ -66,6 +67,7 @@
         --negative: #b3392a;
         --warning: #a8480a;
         --pinned: #a36a00;
+    --commander: #5b3fa8;
         --fresh: #d9ae00;
         --fresh-glow: rgba(217, 174, 0, 0.45);
         --rarity-common: #5f6670;
@@ -94,6 +96,7 @@
     --negative: #b3392a;
     --warning: #a8480a;
     --pinned: #a36a00;
+    --commander: #5b3fa8;
     --fresh: #d9ae00;
     --fresh-glow: rgba(217, 174, 0, 0.45);
     --rarity-common: #5f6670;
@@ -621,6 +624,9 @@ input[type="checkbox"], input[type="range"] { accent-color: var(--text); }
 .deck-table tbody tr.selected { background: var(--selected); }
 
 .deck-name { font-size: 15px; font-weight: 600; }
+/* A Brawl deck's commander (#113): its name often isn't the deck's. Violet is no other meaning's colour. */
+.deck-commander { font-size: 13px; color: var(--text-faint); }
+.deck-commander .commander-name { color: var(--commander); font-weight: 500; }
 .deck-meta { color: var(--text-faint); font-size: 12.5px; }
 
 /* Total and composition as one unit: the number that decides anything is not the total

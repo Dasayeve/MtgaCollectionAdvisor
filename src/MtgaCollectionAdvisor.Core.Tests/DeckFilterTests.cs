@@ -503,6 +503,67 @@ public class DeckFilterTests
         Assert.True(criteria.IsEmpty);
     }
 
+    // #113: a Brawl deck's name often doesn't say its commander.
+    private static DeckAnalysisResult Brawl(string name, string commander, params string[] mainboard) =>
+        Deck(name, "G", mainboard) with
+        {
+            Gaps =
+            [
+                new CardGap(commander, DeckBoard.Commander, 1, 0, 1, CardRarity.Mythic),
+                .. mainboard.Select(c => new CardGap(c, DeckBoard.Main, 1, 0, 2, CardRarity.Rare)),
+            ],
+        };
+
+    [Fact]
+    public void Commanders_are_the_commander_board_in_order()
+    {
+        var deck = Brawl("Partners", "Tymna the Weaver", "Llanowar Elves") with
+        {
+            Gaps =
+            [
+                new CardGap("Tymna the Weaver", DeckBoard.Commander, 1, 0, 1, CardRarity.Mythic),
+                new CardGap("Llanowar Elves", DeckBoard.Main, 1, 0, 2, CardRarity.Common),
+                new CardGap("Kraum, Ludevic's Opus", DeckBoard.Commander, 1, 0, 3, CardRarity.Mythic),
+            ],
+        };
+
+        Assert.Equal(["Tymna the Weaver", "Kraum, Ludevic's Opus"], deck.Commanders.Select(c => c.CardName));
+    }
+
+    [Fact]
+    public void Commanders_is_empty_without_a_commander_board()
+    {
+        Assert.Empty(Deck("Mono Red", "R", ["Shock"]).Commanders);
+    }
+
+    [Fact]
+    public void NameSearch_matches_the_commander()
+    {
+        var decks = new[] { Brawl("Healing Earth", "Azusa, Lost but Seeking"), Brawl("Worl is moine", "Worldsoul's Rage") };
+
+        var result = DeckFilter.Apply(decks, new DeckFilterCriteria { NameSearch = "azusa" }, EmptyWallet);
+
+        Assert.Equal("Healing Earth", Assert.Single(result).Deck.Name);
+    }
+
+    [Fact]
+    public void NameSearch_does_not_match_mainboard_cards()
+    {
+        var decks = new[] { Brawl("Healing Earth", "Azusa, Lost but Seeking", "Llanowar Elves") };
+
+        Assert.Empty(DeckFilter.Apply(decks, new DeckFilterCriteria { NameSearch = "llanowar" }, EmptyWallet));
+    }
+
+    [Fact]
+    public void NameSearch_still_matches_the_deck_name()
+    {
+        var decks = new[] { Brawl("Healing Earth", "Azusa, Lost but Seeking"), Deck("Earthbound", "G", ["Forest"]) };
+
+        var result = DeckFilter.Apply(decks, new DeckFilterCriteria { NameSearch = "earth" }, EmptyWallet);
+
+        Assert.Equal(2, result.Count);
+    }
+
     private static DeckAnalysisResult Deck(
         string name,
         string colors,
