@@ -168,7 +168,9 @@ public static class DeckFilter
 
         if (!string.IsNullOrWhiteSpace(criteria.NameSearch))
         {
-            query = query.Where(d => d.Deck.Name.Contains(criteria.NameSearch, StringComparison.OrdinalIgnoreCase));
+            // A Brawl deck's name often doesn't say its commander, so the commander matches too (#113).
+            query = query.Where(d => d.Deck.Name.Contains(criteria.NameSearch, StringComparison.OrdinalIgnoreCase)
+                || d.Commanders.Any(c => c.CardName.Contains(criteria.NameSearch, StringComparison.OrdinalIgnoreCase)));
         }
 
         // Every required card must be present; any excluded card disqualifies the deck.
