@@ -52,6 +52,12 @@ calculator picked Standard's column or else Pioneer's, so a new format silently 
 A new format needs a migration for its column and the one-time re-import that fills it
 (`NeedsCardDataBackfill`).
 
+**A card's mana value is `cards.mana_value` (Scryfall's `cmc`), never parsed from `mana_cost`** (#110).
+The stored cost of a split card and of an adventure are both `A // B`, but one's mana value sums the
+halves and the other's is the main card alone; an MDFC stores only its front. Arena-only cards take
+theirs from Arena's cost (`ArenaCardText.ManaValue`), which already writes an adventure's main card
+alone and a Room's two doors together.
+
 **Wildcard totals and saved decks are only in `Player.log` with MTG Arena's "Detailed Logs
 (Plugin Support)" on** (Options → Account). The log says which with a plain line near the top
 of each session, `DETAILED LOGS: ENABLED` or `DISABLED` (`DetailedLogsLine`). Wildcards never
