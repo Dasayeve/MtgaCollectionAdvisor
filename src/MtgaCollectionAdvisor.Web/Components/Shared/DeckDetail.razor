@@ -12,6 +12,15 @@
         <span class="result-count">
             @Shown.Needed.Total wildcards needed · @Shown.OwnedFraction.ToString("P0") of the list already yours
         </span>
+        @* #111: the list, or the cards' images by mana value; the same deck either way. *@
+        <div class="segmented" role="group" aria-label="Deck view">
+            <button class="@(Session.DeckView == DeckView.List ? "active" : null)"
+                    aria-pressed="@(Session.DeckView == DeckView.List)"
+                    @onclick="() => Session.DeckView = DeckView.List">List</button>
+            <button class="@(Session.DeckView == DeckView.Visual ? "active" : null)"
+                    aria-pressed="@(Session.DeckView == DeckView.Visual)"
+                    @onclick="() => Session.DeckView = DeckView.Visual">Visual</button>
+        </div>
         @if (Deck.HasNonBasicLands)
         {
             @* #61: a mana base is often most of a deck's rare wildcards and can wait; this shows
@@ -60,41 +69,48 @@
         <div class="lands-note">@LandsNote(copies, cost)</div>
     }
 
-    <div class="card-columns">
-        <div>
-            @if (Shown.Gaps.Any(g => g.Board == DeckBoard.Commander))
-            {
-                @* A Brawl deck's commander (#76), apart from the 99 as Arena shows it. *@
-                <div class="card-list-title">Commander</div>
-                @foreach (var gap in DeckListOrder.Order(Shown.Gaps.Where(g => g.Board == DeckBoard.Commander)))
-                {
-                    @RenderCardRow(gap)
-                }
-            }
-            @* By the deck's curve (#110): spells by mana value, then non-basic lands, then basics. *@
-            <div class="card-list-title">Mainboard</div>
-            @foreach (var gap in DeckListOrder.Order(Shown.Gaps.Where(g => g.Board == DeckBoard.Main)))
-            {
-                @RenderCardRow(gap)
-            }
-        </div>
-
-        @if (Shown.Gaps.Any(g => g.Board == DeckBoard.Sideboard))
-        {
+    @if (Session.DeckView == DeckView.Visual)
+    {
+        <DeckVisual Gaps="Shown.Gaps" />
+    }
+    else
+    {
+        <div class="card-columns">
             <div>
-                <div class="card-list-title">Sideboard</div>
-                @foreach (var gap in DeckListOrder.Order(Shown.Gaps.Where(g => g.Board == DeckBoard.Sideboard)))
+                @if (Shown.Gaps.Any(g => g.Board == DeckBoard.Commander))
+                {
+                    @* A Brawl deck's commander (#76), apart from the 99 as Arena shows it. *@
+                    <div class="card-list-title">Commander</div>
+                    @foreach (var gap in DeckListOrder.Order(Shown.Gaps.Where(g => g.Board == DeckBoard.Commander)))
+                    {
+                        @RenderCardRow(gap)
+                    }
+                }
+                @* By the deck's curve (#110): spells by mana value, then non-basic lands, then basics. *@
+                <div class="card-list-title">Mainboard</div>
+                @foreach (var gap in DeckListOrder.Order(Shown.Gaps.Where(g => g.Board == DeckBoard.Main)))
                 {
                     @RenderCardRow(gap)
                 }
             </div>
-        }
 
-        <div>
-            <div class="card-list-title">Export (Arena format)</div>
-            <textarea class="export-area" readonly>@Session.ExportDeck(Shown.Deck)</textarea>
+            @if (Shown.Gaps.Any(g => g.Board == DeckBoard.Sideboard))
+            {
+                <div>
+                    <div class="card-list-title">Sideboard</div>
+                    @foreach (var gap in DeckListOrder.Order(Shown.Gaps.Where(g => g.Board == DeckBoard.Sideboard)))
+                    {
+                        @RenderCardRow(gap)
+                    }
+                </div>
+            }
+
+            <div>
+                <div class="card-list-title">Export (Arena format)</div>
+                <textarea class="export-area" readonly>@Session.ExportDeck(Shown.Deck)</textarea>
+            </div>
         </div>
-    </div>
+    }
 </div>
 
 @if (_showPacks)
@@ -203,7 +219,7 @@
     private static string CardRowClass(CardGap gap) =>
         gap.Missing == 0 ? "owned" : gap.Owned > 0 ? "partial" : "missing";
 
-    private static string RarityClass(CardRarity rarity) => rarity switch
+    internal static string RarityClass(CardRarity rarity) => rarity switch
     {
         CardRarity.Common => "c",
         CardRarity.Uncommon => "u",

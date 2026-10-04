@@ -356,6 +356,10 @@ file already carries `image_uris`; a double-faced card has none at the top level
 face instead. `*.scryfall.io` has no rate limit, while `api.scryfall.com` does (10/s), so never
 build image URLs through the API per card. Scryfall's rules: show the whole card, scaled
 proportionally, never cropped, filtered or covered (the artist and copyright lines stay).
+One knowing exception, the maintainer's call (#111): the visual deck view stacks cards like
+MTG Arena does (and deck sites do with Scryfall's images), each card whole on hover, with the
+"x3" count drawn on the art. Don't spread it: no dimming or filters anywhere, and elsewhere
+nothing drawn on a card.
 
 **Land kinds come from the front face's type line, by whole-word supertype** (#61). Basic
 means the "Basic" supertype on a Land: matching the text "Basic Land" missed "Basic Snow Land",

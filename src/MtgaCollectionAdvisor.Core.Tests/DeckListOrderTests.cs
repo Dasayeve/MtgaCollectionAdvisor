@@ -61,4 +61,42 @@ public sealed class DeckListOrderTests
     {
         Assert.Equal(["abc", "Abd"], Names(Spell("Abd", 2), Spell("abc", 2)));
     }
+
+    // #111: the visual view's columns.
+    private static string[] Columns(params CardGap[] gaps) =>
+        [.. DeckListOrder.Columns(gaps).Select(c => $"{c.Title}: {string.Join(", ", c.Cards.Select(g => g.CardName))}")];
+
+    [Fact]
+    public void Columns_group_spells_by_mana_value_then_lands()
+    {
+        Assert.Equal(["1: Bolt, Opt", "2: Counterspell", "Lands: Watery Grave, Island"],
+            Columns(Basic("Island"), Spell("Counterspell", 2), NonBasicLand("Watery Grave"), Spell("Opt", 1), Spell("Bolt", 1)));
+    }
+
+    [Fact]
+    public void Columns_put_seven_and_more_together()
+    {
+        Assert.Equal(["7+: Seven, Nine"], Columns(Spell("Nine", 9), Spell("Seven", 7)));
+    }
+
+    [Fact]
+    public void Columns_put_the_commander_first()
+    {
+        var commander = new CardGap("Azusa, Lost but Seeking", DeckBoard.Commander, 1, 0, 1, CardRarity.Rare, ManaValue: 3);
+
+        Assert.Equal(["Commander: Azusa, Lost but Seeking", "1: Opt"], Columns(Spell("Opt", 1), commander));
+    }
+
+    [Fact]
+    public void Columns_skip_empty_values()
+    {
+        Assert.Equal(["1", "4"], DeckListOrder.Columns([Spell("Four", 4), Spell("One", 1)]).Select(c => c.Title));
+    }
+
+    [Fact]
+    public void Columns_put_unknown_mana_value_and_unrecognised_apart()
+    {
+        Assert.Equal(["2: Two", "?: Unknown", "Lands: Island", "Not recognised: Mystery"],
+            Columns(Unrecognised("Mystery"), Basic("Island"), Spell("Unknown", null), Spell("Two", 2)));
+    }
 }

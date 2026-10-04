@@ -754,6 +754,86 @@ input[type="checkbox"], input[type="range"] { accent-color: var(--text); }
 .card-row.partial .card-qty, .card-row.missing .card-qty { color: var(--text); }
 .card-row.missing .card-name { font-weight: 600; }
 
+/* The deck as card images (#111), stacked by mana value like MTG Arena's deck view: each card shows
+   its title strip and the last one is whole; the mouse (or focus) lifts a card above the others,
+   whole. The maintainer chose the count drawn on the card, as Arena does. Cards are never dimmed or
+   filtered; a missing card is outlined. The view scrolls sideways inside the panel, never the page. */
+.deck-visual { padding: var(--space-2) var(--space-3); }
+.visual-board {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-3);
+    overflow-x: auto;
+    padding: 4px 4px var(--space-2);
+}
+.visual-column { flex: none; width: 146px; display: flex; flex-direction: column; }
+.visual-column-title {
+    font-size: 13px;
+    font-weight: 600;
+    display: flex;
+    justify-content: space-between;
+    padding: 0 2px;
+    margin-bottom: var(--space-2);
+}
+.visual-column-count { color: var(--text-faint); font-weight: 400; font-variant-numeric: tabular-nums; }
+
+/* 146px wide is 203.4px tall (488 x 680); each card after the first leaves 48px of the one above
+   showing: its title bar and the count. */
+.visual-card {
+    position: relative;
+    width: 146px;
+    aspect-ratio: 488 / 680;
+    border-radius: 7px;
+}
+.visual-card + .visual-card { margin-top: -155px; }
+.visual-card:hover,
+.visual-card:focus-visible { z-index: 5; }
+
+.visual-card > img,
+.visual-placeholder {
+    display: block;
+    width: 100%;
+    height: 100%;
+    border-radius: 7px;
+    background: var(--surface-raised);
+}
+.visual-placeholder {
+    padding: var(--space-2);
+    font-size: 12px;
+    color: var(--text-muted);
+    border: 1px dashed var(--border-strong);
+}
+/* Inset, on the card's black frame: an outline outside it would run down the sides of the cards
+   stacked over it. */
+.visual-card.missing { outline: 2px solid; outline-offset: -2px; }
+.visual-card.missing.c { outline-color: var(--rarity-common); }
+.visual-card.missing.u { outline-color: var(--rarity-uncommon); }
+.visual-card.missing.r { outline-color: var(--rarity-rare); }
+.visual-card.missing.m { outline-color: var(--rarity-mythic); }
+
+/* Below the title bar, inside the 48px each stacked card shows. */
+.visual-badge {
+    position: absolute;
+    top: 24px;
+    right: 6px;
+    display: flex;
+    gap: 6px;
+    align-items: baseline;
+    padding: 1px 7px;
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    border: 1px solid var(--border-strong);
+    font-size: 12.5px;
+    font-weight: 700;
+    line-height: 1.4;
+    font-variant-numeric: tabular-nums;
+}
+.visual-badge .card-need,
+.visual-badge .card-have,
+.visual-badge .card-unknown { font-size: 11.5px; }
+
+.deck-visual .card-list-title { margin-top: var(--space-4); }
+
 /* #61: price the open deck without its non-basic lands. */
 .exclude-lands {
     display: inline-flex;
