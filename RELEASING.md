@@ -23,6 +23,17 @@ next patch.
    ships and is listed in the schema tests. See "Database schema" in `CLAUDE.md`.
 3. The app has been used on this commit (`publish-local.ps1`) and the change works in the
    real window.
+4. **Smoke test what will ship.** CI's own check is only three URLs returning 200.
+   - **Publish:** publish `master` the way `release.yml` does (self-contained single file,
+     `-p:Version=X.Y.Z`, `-p:WindowsAppNoConsole=true`).
+   - **Run on an upgrade:** start the exe on port 5299 with `MTGA_ADVISOR_DB_PATH` pointing at a
+     copy of a database from the previous release (an `advisor.db.backup-v{N}` works). Check that
+     it migrates and logs the new version.
+   - **Use it:** drive what the release changed, plus Decks, My decks, a deck, Creators and the
+     exports.
+   - **Close it:** close the window and check that the log records the stop.
+   - **Clean up:** delete `Web/bin/Release` and `Web/obj/Release`, because the no-console flag is
+     cached there.
 
 ## Tagging
 
@@ -70,6 +81,15 @@ A pull request that changes `release.yml` runs the workflow as a **dry run**. It
 packs a `0.0.<run>-dryrun` version, keeps the result as a workflow artifact
 (`release-dry-run`), and publishes nothing.
 
-To try installing and updating locally without publishing, see "Releases" in `CLAUDE.md`.
-Don't install a real release on the development machine: it replaces the `MTGA Deck Advisor`
-desktop shortcut that `publish-local.ps1` makes.
+## Testing install and update locally
+
+- **Without publishing:** pack under another `packId` and point `MTGA_ADVISOR_UPDATE_SOURCE` at
+  the local `Releases` folder.
+- **The real update loop:** install the previous release next to a test database. Run its
+  `Setup.exe --silent` with `MTGA_ADVISOR_DB_PATH` and `MTGA_ADVISOR_PORT` set, then start
+  `%LOCALAPPDATA%\MtgaDeckAdvisor\current\*.exe` the same way. The app keeps both across Velopack's
+  restart. Uninstall with `Update.exe --uninstall --silent`.
+- **Never point an older release at the real database:** it refuses a newer schema.
+- **The desktop shortcut:** installing a release replaces the `MTGA Deck Advisor` shortcut that
+  `publish-local.ps1` makes. Run `publish-local.ps1` again afterwards. Uninstalling removes only
+  shortcuts into the install folder.

@@ -1,372 +1,242 @@
 # CLAUDE.md
 
-Working notes for this repository. Constraints here were learned the hard way — each one
-cost real debugging time, and none of them are obvious from reading the code.
+Constraints that aren't obvious from the code. Most of them fail silently.
 
 ## Layout
 
 | Project | Contains |
 |---|---|
 | `MtgaCollectionAdvisor.Core` | All logic: memory scanner, Scryfall import, Archidekt client, wildcard analysis, SQLite storage |
-| `MtgaCollectionAdvisor.Web` | Blazor Server UI — the only front-end |
+| `MtgaCollectionAdvisor.Web` | Blazor Server UI, the only front-end |
 | `MtgaCollectionAdvisor.Core.Tests` | xUnit tests |
 
 `Core` has no reference to `Web`. The UI holds no domain logic.
 
-## Collection capture
+## MTG Arena data
 
-**The MTGA client does not write the collection anywhere readable.** Not to `Player.log`,
-not to a cache file, not to the registry — verified across a full restart, a login to the
-main menu, and opening the in-game Collection screen. Do not spend time looking again.
-Reading process memory (`Core/Memory/`) is the only route. Wildcard totals *are* still in
-`Player.log` and are read from there.
+**The collection is only in process memory** (`Core/Memory/`). The client writes it nowhere
+readable: not `Player.log`, not a cache file, not the registry. That was checked thoroughly; don't
+look again.
 
-**On macOS the memory is read through Mach** (`ProcessMemoryReader`). `task_for_pid` fails
-unless the app is signed with the `com.apple.security.cs.debugger` entitlement; an ad-hoc
-signature is enough, and the Web csproj re-signs the binary after Build and Publish. The
-user also needs developer tools access (the `_developer` group, which Xcode or its command
-line tools set up, or `DevToolsSecurity -enable`): a correctly signed app failing with Mach
-error 5 is more likely a group problem than a signing problem. Verified only for a
-`_developer` member, with `DevToolsSecurity` disabled; an account outside the group is
-untested. A Mach read fails whole when any page is unreadable, so `ReadPartial` retries page
-by page.
+**Wildcard totals and saved decks are in `Player.log`, only with "Detailed Logs (Plugin Support)" on**
+(Options → Account). Each session logs `DETAILED LOGS: ENABLED` or `DISABLED` near the top
+(`DetailedLogsLine`). Wildcards never read are **unknown (`null`), never zero** (#57): zero made every
+deck look uncraftable.
 
-**The decks saved in Arena *are* in `Player.log`**, unlike the collection. They come in the
-`StartHook` login message, which is also the one carrying wildcard totals: `DeckSummaries`
-(name, `Format` attribute, `IsNetDeck`) and `DecksInternal` (cards by grpId per section,
-including `CommandZone` and `Companions`). About half the list is Wizards' decks: suggested
-decks have `IsNetDeck`, and precons have `?=?Loc/...` names. Arena writes the list only at
-login, so it is stored (`arena_decks`) rather than re-read. Two traps when turning them into app decks:
-Arena names Pioneer **Explorer** (the two are unified; decks may carry either name), and it lists a companion in `Companions` *and* in
-`Sideboard`, so read the sideboard only (`ArenaDeckImport`).
+**Saved decks come only in the login message** (`StartHook`), so they are stored (`arena_decks`),
+not re-read. Turning them into app decks (`ArenaDeckImport`) has three traps:
+- Arena calls Pioneer **Explorer**.
+- A companion is listed in `Companions` *and* `Sideboard`: read the sideboard only.
+- Arena's `HistoricBrawl` is the 100-card Brawl; its `Brawl` is Standard Brawl (60 cards). Archidekt
+  names them the same way.
 
-**Arena's saved decks call the 100-card Brawl `HistoricBrawl`; their `Brawl` is Standard Brawl**
-(60 cards) (#75, #76). Archidekt names them the same old way ("Historic Brawl" is 20, "Brawl" is
-13). Legality can't tell a creator's list apart (a 60-card Historic list is all legal in Brawl),
-so a list has to fit a format's shape first (`FormatDefinition.FitsShapeOf`). The commander is its own board (`DeckBoard.Commander`):
-Copy for Arena must write the `Commander` section, which is the only place Arena's importer
-reads a commander from.
+Legality can't tell the Brawls apart, so a list must fit a format's shape first
+(`FormatDefinition.FitsShapeOf`). The commander is its own board (`DeckBoard.Commander`), and Copy for
+Arena must write a `Commander` section: Arena's importer reads a commander from nowhere else.
 
-**Card legality is `CardInfo.IsLegalIn(format)`, one column per format.** Before Brawl the
-calculator picked Standard's column or else Pioneer's, so a new format silently read Pioneer's.
-A new format needs a migration for its column and the one-time re-import that fills it
-(`NeedsCardDataBackfill`).
+Two scanner traps, both easy to reintroduce:
+- **Chunked reads must overlap**, or a table straddling a boundary is split and only its larger half
+  survives.
+- **The client keeps partial views of the collection** (a filtered page, a format pool) that score as
+  well as the real table. The collection is the *maximal* table: a block contained in a larger one is
+  a view. A real collection has thousands of entries, ~98% known ids, 1–4 copies (never averaging
+  over 4). A block of all 1s is a UI list.
 
-**A card's mana value is `cards.mana_value` (Scryfall's `cmc`), never parsed from `mana_cost`** (#110).
-The stored cost of a split card and of an adventure are both `A // B`, but one's mana value sums the
-halves and the other's is the main card alone; an MDFC stores only its front. Arena-only cards take
-theirs from Arena's cost (`ArenaCardText.ManaValue`), which already writes an adventure's main card
-alone and a Room's two doors together.
+**On macOS, memory is read through Mach** (`ProcessMemoryReader`). `task_for_pid` needs the
+`com.apple.security.cs.debugger` entitlement (an ad-hoc signature is enough; the Web csproj re-signs
+after Build and Publish) *and* the user in the `_developer` group. Mach error 5 with a signed app is
+usually the group. A Mach read fails whole on one unreadable page, so `ReadPartial` retries page by page.
 
-**Wildcard totals and saved decks are only in `Player.log` with MTG Arena's "Detailed Logs
-(Plugin Support)" on** (Options → Account). The log says which with a plain line near the top
-of each session, `DETAILED LOGS: ENABLED` or `DISABLED` (`DetailedLogsLine`). Wildcards never
-read are **unknown (`null`), never zero** (#57): zero made every deck look uncraftable.
+**MTG Arena's card database lends ids Scryfall doesn't have yet** (#101):
+`MTGA_Data\Downloads\Raw\Raw_CardDatabase_<hash>.mtga`, plain SQLite, no legality or images.
+- **Matching.** `CardSourceMerge` matches an id-less Scryfall print by set, collector number *and*
+  name. A card Scryfall lacks gets, per format, the legality most of its set's id-less Scryfall prints
+  have. Old cards under codes Scryfall never gave Arena ids (TMP, PZA) must not come out
+  Standard-legal.
+- **Reading the file.** Open it `Mode=ReadOnly;Pooling=False`, so no handle blocks Arena's update.
+  Names carry markup (`<nobr>`, `///`, an Alchemy sprite that becomes `A-`; `ArenaCardText`).
+  Alchemy cards are not flagged `IsRebalanced`. A failed read never fails an import.
+- **Re-imports.** A new file hash with unknown ids triggers one import. Scryfall publishing the ids
+  later triggers nothing: set `refreshCardsAfter` then.
 
-Two traps in the scanner, both fixed and both easy to reintroduce:
+## Card data
 
-- **Chunked reads must overlap.** A collection table straddling a chunk boundary gets split,
-  and only its larger half survives.
-- **The client keeps partial views of the collection in memory** (a filtered page, a
-  format-restricted pool) that score as well as the real table. The collection is the
-  *maximal* such table, so any block essentially contained in a larger one is a view of it.
+**Legality is `CardInfo.IsLegalIn(format)`, one column per format.** A new format needs a migration for
+its column and the re-import that fills it.
 
-A real collection has thousands of entries, ~98% known Arena ids, a spread of 1–4 copies,
-and cannot average more than 4 copies per card. A block where every quantity is exactly 1
-is a UI list, not a collection.
+**Mana value is `cards.mana_value` (Scryfall's `cmc`), never parsed from `mana_cost`** (#110). The
+stored cost of a split card and of an adventure is `A // B` either way, but one sums its halves and the
+other counts the main card. Arena-only cards use `ArenaCardText.ManaValue`; Arena's cost already holds
+an adventure's main card alone.
 
-## Blazor
+**Land kinds come from the front face's type line, by whole-word supertype** (#61). "Basic Land" as
+text missed "Basic Snow Land". A spell with a land on its back is not a land.
+`ScryfallCard.IsBasicLandType`/`IsNonBasicLandType` are the only place this is decided.
 
-**Interactive components need `@rendermode="InteractiveServer"`** on `<Routes />` and
-`<HeadOutlet />` in `App.razor`. Without it the app renders as static HTML: the page looks
-perfect, no button responds, and *no error appears anywhere* — not in the browser console,
-not in the server log. If nothing is clickable, check this first.
+**Scryfall's bulk data repeats a few `arena_id`s**: dedupe before inserting.
 
-The taskbar icon of the Chromium `--app` window comes from the page's favicon and web app
-manifest, not from the executable's embedded icon.
+**Fetched decks must be checked for legality**: deck sites let anyone file any list under any format.
 
-**Closing the window stops the app, 45 s later** (#34), **but a lost connection does not** (#99).
-Browsers throttle and freeze hidden pages (a window behind MTG Arena in full screen counts as
-hidden), and a frozen page drops its connection: stopping on that killed the app under the
-player's window. So each page reports itself with beacons (`POST /window/{id}/visible|hidden|closed`,
-in `App.razor`, web-standard so any browser works), and `WindowPresence` decides:
-- **every window said `closed`:** stop after 45 s (a reload's new page connects in that time);
-- **a window went quiet after `hidden`:** it is asleep; wait 12 h, and keep its circuit as long;
-- **quiet while visible, or never reported:** stop after 30 min.
+**Which sets sell packs on Arena is a fixed list** (`PackSets`, #84), from Wizards'
+[drop-rates page](https://magic.wizards.com/en/mtgarena/drop-rates). Add a new set's code when it
+reaches Arena. Scryfall can't say: `booster` is empty for a new set, and `set_type` matches Jumpstart
+and other sets with no packs.
 
-`WindowPresence` counts *connections*, not circuits: Blazor keeps a closed window's circuit for
-hours here, so `OnCircuitClosedAsync` means nothing. Nothing stops until a first window has
-connected, so a `--no-browser` run that nobody opens stays up. Every stop is logged with its
-reason. A second launch finds the running instance through `/instance` and opens a window on
-it. An instance killed mid-shutdown can still hold port 5199 and lock `bin/` DLLs, so check
-`tasklist` before blaming a port conflict or a broken build.
+**Card images come from Scryfall's CDN, by URLs stored at import** (#59). `*.scryfall.io` has no rate
+limit; `api.scryfall.com` does (10/s), so never build image URLs through the API. A double-faced card
+has `image_uris` per face, none at the top. Scryfall's rules: the whole card, scaled proportionally,
+never cropped, filtered or covered. **One deliberate exception** (#111, the maintainer's call): the
+visual deck view stacks cards like MTG Arena, each whole on hover, with the count on the art. Don't
+spread it: no dimming or filters anywhere, nothing drawn on a card elsewhere.
 
-**Test on another port while the user has the app open:** set `MTGA_ADVISOR_PORT` (e.g.
-5299) for the test run. On 5199, a copy started for testing is where the user's desktop
-shortcut opens its window, and stopping it breaks their session mid-use with nothing
-saying why. Both copies share `advisor.db` unless `MTGA_ADVISOR_DB_PATH` points the test
-copy at another file, such as a copy of the user's database; without it, a test writes the
-user's data.
+## Network and external sources
 
-**A browser-automation tab is hidden, and Edge freezes hidden tabs** (#56). After a minute
-idle, scripts and screenshots in it time out ("renderer frozen") and its circuit drops. That is
-not an app bug. Since #99 the app keeps running for it (it said `hidden`); closing the tab stops
-the app 45 s later. Keep driving the tab, or check the outcome server-side (`curl` the page,
-look at the database).
+**Every network call gets a ceiling per install before it gets code** (#89). Know how often it runs in
+the worst case (restarts, retries), hold it across restarts by storing the times, and treat a failure
+as "no news", never with a retry loop. A rate-limited app looks broken and says nothing. The schedule
+lives in Core with a test (`CardRefreshSchedule`, `CreatorFeedSchedule`); a large download sits behind
+a small check.
 
-**The first-run setup (#56) resumes through a marker file**, `advisor.db.setup`, next to the
-database. It is created when the setup starts and deleted when it finishes, so a setup closed
-midway comes back even though the cards and decks it stored no longer call for it. Delete the
-marker to drop an unfinished setup; delete the database (or point `MTGA_ADVISOR_DB_PATH` at a
-new file) to see the setup again.
+**Archidekt is the readable deck source.** AetherHub, Moxfield and MTGGoldfish refuse automated reads
+(Cloudflare): don't get past it, open their links and let the player paste the export. Archidekt's
+search ignores `pageSize` (60 per page), stops at 1000 results, and `-viewCount` is all-time and
+stale, so the fetch walks `-updatedAt` (#36). Keep to `ArchidektSyncPlanner`'s limits. A failed read,
+429 included, stops the fetch and keeps what was read.
 
-**Verify with `dotnet run`, not by launching the `.exe` in `bin/`.** Run that way, outside
-a publish, the app is in Production and serves no `wwwroot`: every page arrives with no CSS,
-and no error.
+**Deck sources send explicit nulls where a list is expected.** `System.Text.Json` writes them over
+`= []` initializers, so coalesce at the point of use.
 
-**A `string` component parameter needs `@` to take a field** (#62). `Copied="_copied"` works
-because a `bool` parameter's value is read as C#, but `QuoteStatus="_quoteStatus"` passes the
-text "_quoteStatus": the button showed the field's name, with no warning. Write
-`QuoteStatus="@_quoteStatus"`.
+**YouTube feeds fail at random (404/500) and throttle a machine that asks too often.** A failed feed is
+"no news", never "no videos". Keep to `CreatorFeedSchedule`, and don't bulk-probe feeds while testing:
+it got every feed refused for hours.
 
-**Two more places Razor prints code as text, with no warning** (#85). `Deck@SortArrow(x)`,
-right after a word, is read as an e-mail address: the header showed "Deck@SortArrow(...)".
-Write `Deck@(SortArrow(x))`. And an attribute's text is escaped, so `placeholder="a&#10;b"`
-showed `&#10;`: put the string in a C# field with a real `\n`.
+**Files at the repository root that every installed copy reads from GitHub, no release needed:**
+- `creators.json` (#64): the curated creator roster. At most daily, last good copy stored,
+  `CreatorChannels.All` as fallback. `CreatorRosterTests` fails CI if an entry would be dropped.
+  Only the maintainer curates it: no UI adds channels.
+- `notices.json` (#96): notices to players. At most every 6 h (`NoticeSchedule`). Fields: `id`,
+  `title`, `text`, `showFrom`, and optionally `requiresSet` and `showUntil`. A notice lasts 30 days, or
+  until a newer one starts. **Never reuse an `id`**: a dismissed one never shows again.
+  `NoticeFileTests` fails CI on a bad entry. Test with `MTGA_ADVISOR_NOTICES_URL`.
+- `card-data.json` (#89): set `refreshCardsAfter` (ISO 8601 UTC) when a new set reaches Arena. Each
+  copy re-imports once Scryfall has a file past that time. Scryfall's `updated_at` changes twice a day
+  (prices), so it says nothing about new cards. `card_import_state.source_updated_at` prevents a
+  second import. Test with `MTGA_ADVISOR_CARD_DATA_URL`.
 
-**Don't raise `AdvisorSession.Changed` for view state** (#85). `Decks.razor` resets to page 1
-on every `Changed`, so a notification from a click (opening a deck on page 3) sends the list
-back to page 1. View state shared with the layout gets its own event (`OpenDeckChanged`).
+## SQL
 
-**Colours are tokens in `app.css`, defined for both themes** (#85). Colour carries information
-only (rarity, mana, owned or missing, good or bad, pinned); the rest is neutral, and every text
-colour passes WCAG AA in both themes. A new colour is a token with a light and a dark value,
-never a hex value in a rule. The theme is `data-theme` on `<html>`, set by a script in
-`App.razor` before the first paint; the light values are written twice in `app.css`, once for
-the Windows setting and once for the player's pick.
-
-**Windows has two region settings** (#62): the home location ("Country or region",
-`GetUserDefaultGeoName`) and the regional format, the only one `RegionInfo.CurrentRegion`
-follows. They often differ; `WindowsRegion` reads both.
-
-**A preview inside a dialog is cut at its edges** (#84): `.modal-panel` scrolls, and an
-absolutely positioned popover in it is clipped with no sign of why. Inside a dialog, card and pack
-previews are `position: fixed`, and a small script in `App.razor` places each beside the name
-under the mouse. A new popover in a dialog needs the same, or it gets cut off.
-
-**Report progress synchronously when a final status follows.** `Progress<T>` posts each
-report to run later, so the last "Reading deck 150…" can land after the summary line and
-overwrite it in the status bar. `AdvisorSession` has an `ImmediateProgress` for this.
-
-**File downloads are plain `GET` endpoints linked with `<a download>`** (see `/export/*`
-in `Program.cs`). Blazor leaves an anchor with a `download` attribute to the browser; the
-Chromium `--app` window saves it to Downloads. No JS interop, no blob.
-
-## Testing
-
-Put logic where it can be tested without a UI or a database. Deck-list filtering lives in
-`Core/Analysis/DeckFilter.cs` rather than in the Razor component for exactly this reason —
-the component just builds a `DeckFilterCriteria` and calls it.
-
-Tests use plain xUnit `Assert`; there is no mocking library, because nothing here needs one.
-Tests that genuinely need storage create a throwaway SQLite file and delete it in teardown
-with `TestDatabaseFiles.Delete` (see `CardNameSearchTests`): a pooled connection keeps the
-file locked on Windows, so its pool is cleared first. **Never `SqliteConnection.ClearAllPools()`**
-(#41): xUnit runs test classes in parallel, and it closes the connections other classes are
-still using. They fail at random with `ObjectDisposedException: SQLitePCL.sqlite3`, rarely on
-an idle machine and often under load. To check a fix for this kind of failure, run a few
-`dotnet test` in parallel, several times.
+**Escape `LIKE` wildcards from user input, but `ESCAPE` disables SQLite's `LIKE` index**, about 200x
+slower with no error. For a prefix match on an indexed column, use a range
+(`name >= $p AND name < $p || U+10FFFF`, see `CardDatabaseStore`). Check new lookups with
+`EXPLAIN QUERY PLAN`: `SCAN` won't scale.
 
 ## Database schema
 
-**The schema is versioned: `PRAGMA user_version` is the last migration a database has run**
-(#47). `SchemaMigrator` runs `Storage/Migrations.cs` at startup, backs the file up first
-(`advisor.db.backup-v{N}`, three kept), commits each migration whole, and refuses a
-database newer than the build without touching it. To change the schema, **add a migration
-at the end, never edit one**: users' databases have already run it, and a test pins each
-migration's hash. Editing `CREATE TABLE IF NOT EXISTS` in place does nothing to an
-existing database, which is why this exists.
+**`PRAGMA user_version` is the last migration run** (#47). `SchemaMigrator` runs `Storage/Migrations.cs`
+at startup. It backs up first (`advisor.db.backup-v{N}`, three kept), commits each migration whole, and
+refuses a newer database. **Add a migration at the end, never edit one**: a test pins each hash.
 
-When a version is released, add `Core.Tests/Fixtures/schema-v{N}.sql` (that version's
-schema plus a row of each kind of user data) and list it in the fresh-versus-upgraded test.
+**A migration adds columns; it doesn't fill them.** Data from an import needs the one-time re-import
+trigger (`CardDatabaseStore.NeedsCardDataBackfill`), planned with the migration. Otherwise an upgraded
+player gets the feature empty, with no explanation.
 
-**A migration adds columns; it does not fill them.** When the data comes from an import
-(Scryfall, Archidekt), an upgraded player gets the new feature empty and nothing says why. #59
-shipped image URLs that way until the app learned to re-import once by itself when the column
-is empty everywhere (`CardDatabaseStore.NeedsImageBackfill`). Plan that trigger with the
-migration.
+**`decks` and `deck_cards` are not cache**: they hold the player's own decks (`manual:`) next to fetched
+ones (`archidekt:`). A migration may rebuild cache tables but must carry user rows across.
 
-`decks` and `deck_cards` are **not** cache: they hold the user's own decks (`manual:` ids)
-next to fetched ones (`archidekt:`). A migration may rebuild the cache tables (`cards`,
-fetched decks' sync state, creator videos) but must carry user rows across.
+Each release that changes the schema adds `Core.Tests/Fixtures/schema-v{N}.sql`, listed in both schema
+tests (see `RELEASING.md`).
 
-## Commits, PRs and issues
+## Blazor
 
-**Never put a Claude session link (`claude.ai/code/session_...`) in anything on GitHub**: commit
-messages, PR bodies, PR comments, issues, release notes. Only the maintainer can open it, so it
-tells a reader nothing. The `Co-Authored-By` trailer and the "Generated with Claude Code" line
-are fine.
+**Interactive components need `@rendermode="InteractiveServer"`** on `<Routes />` and `<HeadOutlet />` in
+`App.razor`. Without it the page looks perfect and nothing is clickable, with no error anywhere. Check
+this first.
 
-## Releases
+**Never make the Web project `WinExe`**: Blazor's `blazor.web.js` is only added to `Exe` projects, so
+nothing is clickable, with no error (v0.1.1, #54). The release hides the console with
+`-p:WindowsAppNoConsole=true`. That flag is cached in `obj`: after a publish with it, delete
+`bin/Release` and `obj/Release`.
 
-**A release is a pushed `v*` tag**; `.github/workflows/release.yml` tests, publishes, packs
-with Velopack and uploads. On a PR that touches the workflow it is a dry run that publishes
-nothing. Add the schema fixture for the release (see above).
+**Verify with `dotnet run`, not the `.exe` in `bin/`**: that runs as Production, serves no `wwwroot`,
+and every page has no CSS.
 
-**The Velopack `packId` must never be `MtgaCollectionAdvisor`.** Velopack installs to
-`%LOCALAPPDATA%\<packId>` and deletes that folder on uninstall; that name is the data
-folder, so uninstalling would delete the player's collection and decks. It is
-`MtgaDeckAdvisor`, and `ReleaseWorkflowTests` holds it there. The same test keeps `vpk` in
-the workflow at the `Velopack` package's version: move both together.
+**Razor prints code as text, with no warning:**
+- A `string` parameter needs `@` to take a field: `QuoteStatus="@_quoteStatus"`, not
+  `QuoteStatus="_quoteStatus"` (#62).
+- `Deck@SortArrow(x)` after a word reads as an e-mail address: write `Deck@(SortArrow(x))` (#85).
+- Attribute text is escaped (`&#10;` shows literally): put the string in a C# field.
 
-**macOS is packed but never published yet**: `release-macos` packs `osx-arm64` unsigned and keeps
-it as a workflow artifact, on tags too (`ReleaseWorkflowTests` holds that). Publishing needs a
-Developer ID, `--signEntitlements` with the debugger entitlement, notarization, and an upload
-step on tags.
+**Don't raise `AdvisorSession.Changed` for view state** (#85): `Decks.razor` resets to page 1 on every
+`Changed`. Shared view state gets its own event (`OpenDeckChanged`) or none (`DeckView`).
 
-**`VelopackApp.Build().Run()` stays the first statement of `Program.cs`**: the installer
-runs the exe with hook arguments and expects it to exit at once. `vpk pack` warns that it
-"does not look like your application's entry point": the top-level statements compile to an
-async `Main`, and the call sits in its state machine. It still runs first; install, update
-and uninstall were verified with it there. The published build pins
-its content root to the exe's folder, because the updater's restart does not set a working
-directory and the page would otherwise arrive with no CSS.
+**Colours are tokens in `app.css`, defined for both themes** (#85). Colour carries information only
+(rarity, mana, owned/missing, good/bad, pinned, commander), and every text colour passes WCAG AA in
+both themes. A new colour is a token with a dark value and a light value, the light one written in
+**both** light blocks (Windows setting and player's pick); never a hex in a rule.
 
-**Never make the Web project `WinExe`.** Blazor's framework files (`blazor.web.js`) are
-only added to `Exe` projects (`Microsoft.AspNetCore.App.Internal.Assets.targets`), so a
-`WinExe` build loads, looks right, and no button works, with no error anywhere. v0.1.1
-shipped like that (#54). The release hides the console instead with
-`-p:WindowsAppNoConsole=true`, which sets the SDK's own GUI app-host flag; `dotnet run` and
-`publish-local.ps1` keep their console. The flag is cached in `obj`: after a local publish
-with it, delete `bin/Release` and `obj/Release` before building without it. The release
-workflow smoke-tests the published app (`blazor.web.js` must return 200) before packing.
-Nothing the app logs is visible without a console; the log file is the place to look (#52).
+**A popover inside a dialog is clipped** (#84): `.modal-panel` scrolls. Previews there are
+`position: fixed`, placed by the script in `App.razor`; a new one needs the same.
 
-**The log file is `logs\advisor-YYYY-MM-DD.log` next to the database** (#52): warnings, errors,
-and three startup lines (version, content root, database). A week is kept, and 5 MB per day at
-most. A test run with `MTGA_ADVISOR_DB_PATH` writes its own logs beside that file, never into
-the player's. Errors the app shows in the status bar or a setup step are logged with their
-exception; keep it that way when adding operations, and never log the collection or decks.
-Failures the app handles by itself (a creator feed, a stopped Archidekt fetch, creators.json)
-never reach `RunAsync`'s catch, so Core returns why and `AdvisorSession` logs it (#74);
-`FailureText` turns the exception into "HTTP 429 TooManyRequests", "timed out" and the like.
+**Report progress synchronously when a final status follows**: `Progress<T>` posts later, so the last
+report can overwrite the summary. Use `AdvisorSession.ImmediateProgress`.
 
-Installing a release on the dev machine replaces the `MTGA Deck Advisor` desktop shortcut
-that `publish-local.ps1` makes; run `publish-local.ps1` again afterwards. Uninstalling removes
-only shortcuts that point into the install folder, so a restored one survives it. To try the
-update loop locally, pack under another `packId`, and point `MTGA_ADVISOR_UPDATE_SOURCE` at the
-local `Releases` folder.
+**File downloads are plain `GET` endpoints with `<a download>`** (`/export/*` in `Program.cs`). No JS
+interop.
 
-**To test the real update loop, install the previous release next to a test database** (verified
-for v0.1.2 → v0.2.0): run its `Setup.exe --silent` with `MTGA_ADVISOR_DB_PATH` and
-`MTGA_ADVISOR_PORT` set, and start `%LOCALAPPDATA%\MtgaDeckAdvisor\current\*.exe` the same way.
-The app inherits both, across Velopack's restart too. Never point an older release at the real
-database: it refuses a newer schema. Uninstall with `Update.exe --uninstall --silent`.
+## App lifetime
 
-## External data
+**Closing the window stops the app 45 s later; a lost connection doesn't** (#34, #99). Browsers freeze
+hidden pages (a window behind Arena in full screen counts), which drops the connection. So pages
+report `visible|hidden|closed` by beacon (`POST /window/{id}/...`, in `App.razor`), and
+`WindowPresence` decides:
+- all windows `closed`: stop after 45 s;
+- quiet after `hidden`: asleep, wait 12 h;
+- quiet while visible, or never reported: stop after 30 min.
 
-**Escape `LIKE` wildcards when the search term comes from the user.** An unescaped `%`
-turns a prefix search into a full-table match.
+It counts *connections*, not circuits (`OnCircuitClosedAsync` means nothing here). Nothing stops before
+a first window connects. Every stop is logged with its reason.
 
-**But `ESCAPE` switches off SQLite's `LIKE` index optimisation**, so an escaped `LIKE` scans
-the whole table: results stay correct, only ~200x slower, with no error. For a prefix
-match on an indexed column, write a range instead (`name >= $p AND name < $p || U+10FFFF`,
-see `CardDatabaseStore`): it uses the index and has no wildcards to escape. Check any new
-lookup with `EXPLAIN QUERY PLAN`. `SCAN` means it will not scale.
+**`VelopackApp.Build().Run()` stays the first statement of `Program.cs`**: the installer runs the exe
+with hook arguments and expects it to exit at once. `vpk pack`'s "entry point" warning is expected.
+The published build pins its content root to the exe's folder, because the updater's restart sets no
+working directory.
 
-**Deck sources send explicit nulls where a list is expected.** `System.Text.Json` writes
-those over property initializers, so `= []` on a DTO property does not protect you —
-coalesce at the point of use. Archidekt does this for `categories` on untagged cards.
+**The Velopack `packId` is `MtgaDeckAdvisor`, never `MtgaCollectionAdvisor`**: uninstall deletes
+`%LOCALAPPDATA%\<packId>`, which would be the player's data folder. `ReleaseWorkflowTests` holds it, and
+keeps `vpk` at the `Velopack` package's version: move both together.
 
-**AetherHub and Moxfield (and MTGGoldfish) refuse automated reads** behind Cloudflare. Do not
-try to get past it: open their links for the user and let them paste the export instead.
-Archidekt's API is the readable deck source.
+**The log is `logs\advisor-YYYY-MM-DD.log` next to the database** (#52), the only place to look in the
+console-less release. Errors shown to the player are logged with their exception; never log the
+collection or decks. Failures the app absorbs (a feed, a stopped fetch) never reach `RunAsync`'s catch,
+so Core returns why and `AdvisorSession` logs it (#74, `FailureText`).
 
-**Archidekt's search ignores `pageSize`** (always 60 per page) and stops at 1000 results.
-`orderBy=-viewCount` is all-time: its top pages are years-old, rotated decks and never
-change. The fetch walks `orderBy=-updatedAt` instead (#36). Standard gets roughly 150
-updated decks a *day*, so a walk reaches only a few days back, whatever window the code
-sets. Keep to `ArchidektSyncPlanner`'s limits (a deck read every 300 ms, 150 per fetch, 5 min
-between fetches of a format); they are what keeps the app polite. A failed read, a 429
-included, stops the fetch and keeps what was read.
+## Testing
 
-**YouTube's public channel feeds fail at random (404/500), and throttle a machine that asks
-too often** — during #32, bulk probing got every feed refused for hours, for the app too.
-Treat a failed feed as "no news", never "no videos", and keep to `CreatorFeedSchedule`. Do
-not bulk-probe feeds while testing.
+**Logic goes where it can be tested without a UI or database**: e.g. `DeckFilter`, `DeckListOrder`. The
+component builds the input and calls it.
 
-**The creators list is `creators.json` at the repository root** (#64), read by every copy from
-GitHub's raw URL at most once a day, with the last good copy stored (`creator_roster`) and
-`CreatorChannels.All` as the fallback. Add or remove a creator by editing that file, no release
-needed; `CreatorRosterTests` fails CI when an entry would be dropped. The compiled list only
-catches up at a release. While the repository is private the raw URL returns 404 and every copy
-uses the compiled list. Only the maintainer curates it: no UI adds channels.
+Tests use plain xUnit `Assert`, no mocking library. Storage tests use a throwaway SQLite file, deleted
+with `TestDatabaseFiles.Delete`. **Never `SqliteConnection.ClearAllPools()`** (#41): test classes run in
+parallel, and it breaks theirs at random (`ObjectDisposedException`). To check a fix, run several
+`dotnet test` in parallel, a few times.
 
-**Notices to players are `notices.json` at the repository root** (#96), read like
-`creators.json` at most every 6 hours (`NoticeSchedule`), the last good copy stored. An entry is
-`id`, `title`, `text` (plain text), `showFrom`, and optionally `requiresSet` (it waits until the
-player's Arena brings that set's cards, #101) and `showUntil`. Without `showUntil` a notice lasts 30
-days, or ends when a newer one starts on that copy, so notices don't pile up; `showUntil` replaces
-both. A dismissed `id` never shows again, so never reuse one. `NoticeFileTests` fails CI on a bad
-entry, an unknown property included. Test with `MTGA_ADVISOR_NOTICES_URL` on a test copy.
+**Test the running app on another port, with a copy of the database:** `MTGA_ADVISOR_PORT=5299` and
+`MTGA_ADVISOR_DB_PATH`. On 5199 a test copy hijacks the player's desktop shortcut, and without the DB
+path it writes their data. An instance killed mid-shutdown can hold 5199 and lock `bin/`: check
+`tasklist` before blaming the build.
 
-**When a new set reaches Arena, set `refreshCardsAfter` in `card-data.json`** (#89), at the
-repository root: an ISO 8601 UTC time, committed to `master`, no release needed. Each copy
-re-imports its cards once, after Scryfall has a file generated past that time. A test fails CI
-if the file doesn't parse. **Scryfall's file date is no sign of new cards**: `default_cards`
-is regenerated every 12 hours with prices in it, so its `updated_at` changes twice a day;
-it only answers "is there a file newer than X". Each import records the file it used
-(`card_import_state.source_updated_at`), which is what stops a second import for one flag.
-To watch a real refresh without touching `master`, serve a `card-data.json` locally and point
-`MTGA_ADVISOR_CARD_DATA_URL` at it, on a test copy (`MTGA_ADVISOR_DB_PATH`) whose
-`source_updated_at` is set back; the first check runs a minute after start.
+**A browser-automation tab is hidden, and the browser freezes it** after about a minute idle
+("renderer frozen"). That isn't an app bug. Keep driving it, or check server-side (`curl`, the
+database).
 
-**MTG Arena's own card database lends the ids Scryfall doesn't publish yet** (#101). A new
-set's cards reach Arena days before Scryfall gives them `arena_id`. Arena keeps them in
-`MTGA_Data\Downloads\Raw\Raw_CardDatabase_<hash>.mtga`, a plain SQLite file with the ids
-Scryfall uses, and no legality or images. So it only lends ids (`CardSourceMerge`): a Scryfall
-print without an id is matched by set, collector number *and* name (old Arena-only sets give
-one number to several cards), and a card Scryfall lacks gets provisional legality until the next
-import replaces it: in each format, the legality most of its set's id-less Scryfall prints have.
-Arena's file also holds old cards under codes Scryfall never gave Arena ids (Lotus Petal under
-TMP, Umezawa's Jitte under PZA): "no set knows it", then "Scryfall lists the set", both made them
-Standard-legal in the v0.7.0 smoke test. Open it `Mode=ReadOnly;Pooling=False`, so no handle outlives the read and
-gets in the way of Arena's update. Names carry markup: `<nobr>`, `///` between split halves,
-and a sprite before an Alchemy card, which must become `A-` (`ArenaCardText`). Alchemy cards
-are not flagged `IsRebalanced` in the file. A failed read never fails an import. The folder
-is remembered, so Arena needn't run, and a new file (a new hash) with unknown ids triggers one import.
-Scryfall publishing the ids later triggers nothing: the Arena-built cards stay until the next
-import, so set `refreshCardsAfter` once Scryfall has the new set's `arena_id`s.
+**The first-run setup resumes through `advisor.db.setup`** next to the database. Delete it to drop an
+unfinished setup; use a new `MTGA_ADVISOR_DB_PATH` to see the setup again.
 
-**Which sets sell packs on Arena is a fixed list** (`PackSets`, #84), from Wizards'
-[drop-rates page](https://magic.wizards.com/en/mtgarena/drop-rates): add a new set's Scryfall code when
-it reaches Arena. Nothing in the card data can say it. Scryfall's `booster` flag is empty for a new
-set (all of Reality Fracture read `false` after its release). Its `set_type` matches Jumpstart (J25,
-794 Arena cards), bonus sheets (The Big Score), and old reprints that have no packs. Alchemy packs
-are left out: the app has no Alchemy format. A card with no printing in the list counts for no pack.
+## GitHub
 
-**Every network call gets a ceiling per install before it gets code** (#89): how often in the
-worst case (restarts, retries), held across restarts by storing the times, and "no news" on
-failure, never a retry loop. A player's app that meets a provider's rate limit looks broken
-and says nothing. Put the schedule in Core with a test, as `CardRefreshSchedule` and
-`CreatorFeedSchedule` do; gate a large download behind a small check.
+**Never put a Claude session link (`claude.ai/code/session_...`) on GitHub** (commits, PRs, comments,
+issues, release notes): only the maintainer can open it. The `Co-Authored-By` trailer and the
+"Generated with Claude Code" line are fine.
 
-**Card images come from Scryfall's image CDN, by URLs stored at import** (#59). The bulk
-file already carries `image_uris`; a double-faced card has none at the top level and one per
-face instead. `*.scryfall.io` has no rate limit, while `api.scryfall.com` does (10/s), so never
-build image URLs through the API per card. Scryfall's rules: show the whole card, scaled
-proportionally, never cropped, filtered or covered (the artist and copyright lines stay).
-One knowing exception, the maintainer's call (#111): the visual deck view stacks cards like
-MTG Arena does (and deck sites do with Scryfall's images), each card whole on hover, with the
-"x3" count drawn on the art. Don't spread it: no dimming or filters anywhere, and elsewhere
-nothing drawn on a card.
-
-**Land kinds come from the front face's type line, by whole-word supertype** (#61). Basic
-means the "Basic" supertype on a Land: matching the text "Basic Land" missed "Basic Snow Land",
-and snow-covered basics were priced as commons. A non-basic land is a Land without it; spells
-with a land on their back are not lands for this. `ScryfallCard.IsBasicLandType` and
-`IsNonBasicLandType` are the only place this is decided.
-
-Deck sites let anyone file any list under any format, so fetched decks must be checked for
-format legality rather than trusted. Scryfall's bulk data lists a few `arena_id` values more
-than once, so dedupe before inserting against a primary key.
+Releases: see `RELEASING.md`. macOS is packed (`release-macos`, unsigned artifact) but not published
+until there is a Developer ID and notarization.
