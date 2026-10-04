@@ -1,0 +1,75 @@
+@using MtgaCollectionAdvisor.Core.Analysis
+@using MtgaCollectionAdvisor.Core.Models
+
+@* The deck as card images (#111): a column per mana value, lands last, the sideboard below.
+   Scryfall's rules shape it: every card whole and uncovered (its artist and copyright lines
+   included), never dimmed or filtered, nothing drawn on it. So the cards never overlap, and the
+   count and what is missing sit under the image, with a missing card outlined around it. *@
+
+<div class="deck-visual">
+    @RenderBoard(DeckListOrder.Columns(Gaps.Where(g => g.Board != DeckBoard.Sideboard)))
+
+    @if (Gaps.Any(g => g.Board == DeckBoard.Sideboard))
+    {
+        <div class="card-list-title">Sideboard</div>
+        @RenderBoard(DeckListOrder.Columns(Gaps.Where(g => g.Board == DeckBoard.Sideboard)))
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public IReadOnlyList<CardGap> Gaps { get; set; } = [];
+
+    private RenderFragment RenderBoard(IReadOnlyList<DeckColumn> columns) => @<div class="visual-board">
+        @foreach (var column in columns)
+        {
+            <div class="visual-column">
+                <div class="visual-column-title">@column.Title <span class="visual-column-count">@column.Cards.Sum(g => g.Needed)</span></div>
+                @foreach (var gap in column.Cards)
+                {
+                    @RenderCard(gap)
+                }
+            </div>
+        }
+    </div>;
+
+    private RenderFragment RenderCard(CardGap gap) => @<div class="visual-card">
+        @if (gap.ImageUrl is { } front)
+        {
+            @* The full card on hover, larger: the column shows it at a size its text can't be read at. *@
+            <span class="card-name-hover visual-image @OutlineClass(gap)" tabindex="0">
+                <img src="@front" alt="@gap.CardName" loading="lazy" width="146" />
+                <span class="card-preview" role="tooltip">
+                    <img src="@front" alt="@gap.CardName" loading="lazy" width="244" />
+                    @if (gap.BackImageUrl is { } back)
+                    {
+                        <img src="@back" alt="@($"{gap.CardName}, back face")" loading="lazy" width="244" />
+                    }
+                </span>
+            </span>
+        }
+        else
+        {
+            <span class="visual-image visual-placeholder @OutlineClass(gap)"
+                  title="@(gap.AvailableOnArena ? null : AdvisorSession.UnrecognisedHint)">@gap.CardName</span>
+        }
+        <div class="visual-caption">
+            <span class="visual-qty">x@(gap.Needed)</span>
+            @if (!gap.AvailableOnArena)
+            {
+                <span class="card-unknown">not recognised</span>
+            }
+            else if (gap.Missing > 0)
+            {
+                <span class="card-need @DeckDetail.RarityClass(gap.Rarity)">need @gap.Missing</span>
+            }
+            else
+            {
+                <span class="card-have" title="You own all the copies this list needs">✓</span>
+            }
+        </div>
+    </div>;
+
+    // Around the image, never on it: Scryfall's rules forbid covering or tinting the card.
+    private static string? OutlineClass(CardGap gap) =>
+        gap.AvailableOnArena && gap.Missing > 0 ? $"missing {DeckDetail.RarityClass(gap.Rarity)}" : null;
+}

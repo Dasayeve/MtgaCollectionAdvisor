@@ -283,6 +283,12 @@ public sealed partial class AdvisorSession(AppConfig config, ILogger<AdvisorSess
     }
 
     /// <summary>
+    /// How the deck panel shows a deck (#111), kept while the app runs so every deck opens the
+    /// same way. View state only: it raises no event (CLAUDE.md #85).
+    /// </summary>
+    public DeckView DeckView { get; set; } = DeckView.List;
+
+    /// <summary>
     /// Pins or unpins without refetching anything - the ranking in memory is unchanged,
     /// only which decks are marked.
     /// </summary>
@@ -747,3 +753,6 @@ public sealed partial class AdvisorSession(AppConfig config, ILogger<AdvisorSess
         _operationGate.Dispose();
     }
 }
+
+/// <summary>The deck panel's two views (#111): the card list, or the cards' images by mana value.</summary>
+public enum DeckView { List, Visual }
