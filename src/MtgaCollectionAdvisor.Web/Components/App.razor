@@ -96,12 +96,12 @@
             addEventListener("pageshow", function (e) { if (e.persisted) reportVisibility(); });
         })();
     </script>
-    @* Card and pack previews inside a dialog (#84), and in the visual deck view (#111), are
-       position: fixed, so the dialog's or the view's scrolling never clips them; this puts each beside the name under the mouse, on whichever side has
+    @* Card and pack previews inside a dialog (#84) are position: fixed, so the dialog's scrolling
+       never clips them; this puts each beside the name under the mouse, on whichever side has
        room, and inside the window. Plain DOM, no Blazor: CSS still decides when they show. *@
     <script>
         (function () {
-            var NAMES = ".modal-panel .card-name-hover, .modal-panel .pack-name-hover, .deck-visual .card-name-hover";
+            var NAMES = ".modal-panel .card-name-hover, .modal-panel .pack-name-hover";
             function previewOf(name) {
                 return name.classList.contains("pack-name-hover")
                     ? name.closest(".pack") && name.closest(".pack").querySelector(".pack-preview")
