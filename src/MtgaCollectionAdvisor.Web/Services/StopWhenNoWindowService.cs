@@ -7,6 +7,10 @@ namespace MtgaCollectionAdvisor.Web.Services;
 /// the log (#99): the installed app has no console, and an app that vanished with nothing
 /// said is what made #99 hard to see. Stopping disposes <see cref="AdvisorSession"/>, which
 /// ends the MTG Arena watcher and the Player.log poller, and frees port 5199.
+///
+/// The machine sleeping is noticed here, as a check that comes far later than due, and that
+/// time is taken out of every limit before deciding (#118): otherwise the first check on
+/// waking would stop the app before its window woke up to reconnect.
 /// </summary>
 public sealed class StopWhenNoWindowService(
     WindowPresence presence, IHostApplicationLifetime lifetime, ILoggerFactory loggers) : BackgroundService
@@ -18,9 +22,18 @@ public sealed class StopWhenNoWindowService(
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         using var timer = new PeriodicTimer(CheckEvery);
+        var previousCheck = DateTimeOffset.UtcNow;
         while (await timer.WaitForNextTickAsync(stoppingToken))
         {
-            if (presence.ShouldStop(DateTimeOffset.UtcNow) is { } reason)
+            var now = DateTimeOffset.UtcNow;
+            if (WindowPresence.SleptBetween(previousCheck, now, CheckEvery))
+            {
+                presence.Slept(previousCheck, now);
+                _log.LogInformation("Resumed after {Minutes:0} min asleep", (now - previousCheck).TotalMinutes);
+            }
+            previousCheck = now;
+
+            if (presence.ShouldStop(now) is { } reason)
             {
                 _log.LogInformation("Stopping: {Reason}", Describe(reason));
                 lifetime.StopApplication();
@@ -33,7 +46,6 @@ public sealed class StopWhenNoWindowService(
     {
         StopReason.WindowClosed => "every window closed",
         StopReason.NoWindow => $"no window for {presence.SilenceLimit.TotalMinutes:0} min",
-        StopReason.AsleepTooLong => $"window asleep for {presence.SleepLimit.TotalHours:0} h",
         _ => reason.ToString(),
     };
 }

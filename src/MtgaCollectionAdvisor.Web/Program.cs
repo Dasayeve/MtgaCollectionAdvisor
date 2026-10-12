@@ -46,10 +46,10 @@ builder.Logging.AddFilter<FileLoggerProvider>(LogFiles.StartupCategory, LogLevel
 builder.WebHost.UseUrls(appUrl);
 
 // A window the browser froze while hidden (behind MTG Arena, minimised) drops its connection and
-// wakes up much later (#99). Its circuit is kept as long as the app waits for it, so it resumes
-// where it was, and the timeouts outlast a throttled page's once-a-minute timers.
+// wakes up much later (#99). Its circuit is kept for the retention, so it resumes where it was
+// (later than that it reloads), and the timeouts outlast a throttled page's once-a-minute timers.
 builder.Services.AddRazorComponents()
-    .AddInteractiveServerComponents(options => options.DisconnectedCircuitRetentionPeriod = WindowPresence.DefaultSleepLimit)
+    .AddInteractiveServerComponents(options => options.DisconnectedCircuitRetentionPeriod = WindowPresence.DefaultRetention)
     .AddHubOptions(options => options.ClientTimeoutInterval = TimeSpan.FromMinutes(3));
 
 // Features:CreatorVideos in appsettings.json (or Features__CreatorVideos in the
