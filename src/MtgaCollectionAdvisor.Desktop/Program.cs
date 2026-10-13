@@ -82,11 +82,19 @@ public static class Program
             }
         });
 
+        var updater = provider.GetRequiredService<AppUpdater>();
+        using var stopping = new CancellationTokenSource();
+        _ = Task.Run(() => updater.CheckAndDownloadAsync(stopping.Token));
+
         Application.Run(window);
         startupLog.LogInformation("Stopping: window closed");
+        stopping.Cancel();
 
         // AdvisorSession is only IAsyncDisposable: this ends the MTG Arena watcher and the timers.
         provider.DisposeAsync().AsTask().GetAwaiter().GetResult();
+
+        // An update downloaded but not restarted for is applied now, for the next start.
+        updater.ApplyOnExitIfReady();
     }
 
     private const int AnyProcess = -1;

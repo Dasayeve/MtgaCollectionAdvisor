@@ -10,6 +10,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <ApplicationIcon>..\MtgaCollectionAdvisor.Web\app.ico</ApplicationIcon>
     <RootNamespace>MtgaCollectionAdvisor.Desktop</RootNamespace>
+    <AssemblyName>MtgaDeckAdvisor</AssemblyName>
   </PropertyGroup>
 
   <ItemGroup>
