@@ -152,6 +152,10 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
     outline-offset: 2px;
 }
 
+/* FocusOnNavigate (Routes.razor) focuses the page's heading on every load, for screen readers. The
+   heading isn't a control, so the ring would only frame it for no reason. */
+h1[tabindex]:focus { outline: none; }
+
 /* The one filled button on screen is the thing to do next. */
 button.primary {
     background: var(--text);
@@ -764,6 +768,10 @@ input[type="checkbox"], input[type="range"] { accent-color: var(--text); }
     gap: var(--space-3);
     overflow-x: auto;
     padding: 4px 4px var(--space-2);
+    /* Sits in a table cell, which grows to fit its content even when that content scrolls: a width
+       of 0 asks for no room, and the minimum fills the cell. */
+    width: 0;
+    min-width: 100%;
 }
 .visual-column { flex: none; width: 146px; display: flex; flex-direction: column; }
 .visual-column-title {
