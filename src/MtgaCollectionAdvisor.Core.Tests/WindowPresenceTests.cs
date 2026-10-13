@@ -5,20 +5,20 @@ namespace MtgaCollectionAdvisor.Core.Tests;
 
 /// <summary>
 /// When the app stops for lack of a window. Stopping too eagerly kills it under a window the
-/// browser froze (#99) or on a reload; never stopping leaves it watching MTG Arena with nobody
-/// looking (#34).
+/// browser froze (#99), on a reload or on waking from sleep (#118); never stopping leaves it
+/// watching MTG Arena with nobody looking (#34).
 /// </summary>
 public class WindowPresenceTests
 {
     private static readonly DateTimeOffset T0 = new(2026, 9, 29, 12, 0, 0, TimeSpan.Zero);
     private static readonly TimeSpan Grace = TimeSpan.FromSeconds(45);
     private static readonly TimeSpan Silence = TimeSpan.FromMinutes(30);
-    private static readonly TimeSpan Sleep = TimeSpan.FromHours(12);
+    private static readonly TimeSpan Retention = TimeSpan.FromHours(12);
 
     private const string WindowA = "0f8fad5b-d9cb-469f-a165-70867728950e";
     private const string WindowB = "7c9e6679-7425-40de-944b-e07fc1f90ae7";
 
-    private static WindowPresence NewPresence() => new(Grace, Silence, Sleep);
+    private static WindowPresence NewPresence() => new(Grace, Silence, Retention);
 
     [Fact]
     public void ShouldStop_Should_BeNull_BeforeAnyConnection()
@@ -49,18 +49,106 @@ public class WindowPresenceTests
         presence.Reported(WindowA, WindowState.Hidden, T0.AddMinutes(1));
         presence.Disconnected(T0.AddMinutes(6));
 
-        Assert.Null(presence.ShouldStop(T0.AddMinutes(6).Add(Sleep).AddMinutes(-1)));
+        Assert.Null(presence.ShouldStop(T0.AddMinutes(6).Add(Retention).AddMinutes(-1)));
     }
 
     [Fact]
-    public void ShouldStop_Should_BeAsleepTooLong_AfterTheSleepLimit()
+    public void ShouldStop_Should_WaitForAHiddenWindow_HoweverLongItStaysHidden()
     {
+        // #118: a minimised desktop app stays open. The app stopped after 12 h hidden.
         var presence = NewPresence();
         presence.Connected();
         presence.Reported(WindowA, WindowState.Hidden, T0);
         presence.Disconnected(T0);
 
-        Assert.Equal(StopReason.AsleepTooLong, presence.ShouldStop(T0.Add(Sleep)));
+        Assert.Null(presence.ShouldStop(T0.AddDays(30)));
+    }
+
+    [Fact]
+    public void Slept_Should_KeepTheSilenceLimit_FromCountingTheNight()
+    {
+        // #118: the first check on waking saw the night gone and stopped before the window reconnected.
+        var presence = NewPresence();
+        presence.Connected();
+        presence.Reported(WindowA, WindowState.Visible, T0);
+        presence.Disconnected(T0);
+
+        var wake = T0.AddMinutes(10).AddHours(9);
+        presence.Slept(T0.AddMinutes(10), wake);
+
+        Assert.Null(presence.ShouldStop(wake));
+        Assert.Null(presence.ShouldStop(wake.AddMinutes(19)));
+        Assert.Equal(StopReason.NoWindow, presence.ShouldStop(wake.AddMinutes(20)));
+    }
+
+    [Fact]
+    public void Slept_Should_KeepTheCloseGrace_FromCountingTheNight()
+    {
+        var presence = NewPresence();
+        presence.Connected();
+        presence.Reported(WindowA, WindowState.Closed, T0);
+        presence.Disconnected(T0);
+
+        var wake = T0.AddSeconds(10).AddHours(9);
+        presence.Slept(T0.AddSeconds(10), wake);
+
+        Assert.Null(presence.ShouldStop(wake.AddSeconds(34)));
+        Assert.Equal(StopReason.WindowClosed, presence.ShouldStop(wake.AddSeconds(35)));
+    }
+
+    [Fact]
+    public void Slept_Should_KeepAHiddenWindow_FromBeingForgotten()
+    {
+        // The window was hidden long before the connection dropped; a night later it must still count.
+        var presence = NewPresence();
+        presence.Connected();
+        presence.Reported(WindowA, WindowState.Hidden, T0);
+        presence.Disconnected(T0.Add(Retention).AddMinutes(-5));
+
+        var asleep = T0.Add(Retention);
+        var wake = asleep.AddHours(10);
+        presence.Slept(asleep, wake);
+
+        Assert.Null(presence.ShouldStop(wake.AddDays(2)));
+    }
+
+    [Fact]
+    public void Slept_Should_LeaveWhatHappenedAfterWakingAsItIs()
+    {
+        // A close beacon that arrived on waking, before the check noticed the sleep: its grace
+        // starts then, not a night later.
+        var presence = NewPresence();
+        presence.Connected();
+        presence.Disconnected(T0);
+
+        var wake = T0.AddHours(9);
+        presence.Reported(WindowA, WindowState.Closed, wake);
+        presence.Slept(T0.AddSeconds(5), wake.AddSeconds(3));
+
+        Assert.Equal(StopReason.WindowClosed, presence.ShouldStop(wake.AddSeconds(45)));
+    }
+
+    [Fact]
+    public void Slept_Should_DoNothing_When_TheClockWentBack()
+    {
+        var presence = NewPresence();
+        presence.Connected();
+        presence.Disconnected(T0);
+        presence.Slept(T0.AddMinutes(10), T0.AddMinutes(5));
+
+        Assert.Equal(StopReason.NoWindow, presence.ShouldStop(T0.AddMinutes(30)));
+    }
+
+    [Theory]
+    [InlineData(5, false)]
+    [InlineData(30, false)]
+    [InlineData(65, false)]
+    [InlineData(66, true)]
+    [InlineData(9 * 3600, true)]
+    [InlineData(-3600, false)]
+    public void SleptBetween_Should_NoticeACheckFarLaterThanDue(int secondsBetween, bool slept)
+    {
+        Assert.Equal(slept, WindowPresence.SleptBetween(T0, T0.AddSeconds(secondsBetween), TimeSpan.FromSeconds(5)));
     }
 
     [Fact]
@@ -190,25 +278,25 @@ public class WindowPresenceTests
     }
 
     [Fact]
-    public void ShouldStop_Should_PruneWindowsNotHeardFromForTheSleepLimit()
+    public void ShouldStop_Should_PruneWindowsNotHeardFromForTheRetention()
     {
         var presence = NewPresence();
         presence.Connected();
         presence.Reported(WindowA, WindowState.Closed, T0);
-        presence.Reported(WindowB, WindowState.Visible, T0.Add(Sleep).AddMinutes(1));
-        presence.Reported(WindowB, WindowState.Closed, T0.Add(Sleep).AddMinutes(2));
-        presence.Disconnected(T0.Add(Sleep).AddMinutes(2));
+        presence.Reported(WindowB, WindowState.Visible, T0.Add(Retention).AddMinutes(1));
+        presence.Reported(WindowB, WindowState.Closed, T0.Add(Retention).AddMinutes(2));
+        presence.Disconnected(T0.Add(Retention).AddMinutes(2));
 
         // WindowA is pruned; WindowB alone decides, and it closed.
-        Assert.Equal(StopReason.WindowClosed, presence.ShouldStop(T0.Add(Sleep).AddMinutes(3)));
+        Assert.Equal(StopReason.WindowClosed, presence.ShouldStop(T0.Add(Retention).AddMinutes(3)));
 
         var old = NewPresence();
         old.Connected();
         old.Reported(WindowA, WindowState.Closed, T0);
-        old.Disconnected(T0.Add(Sleep).AddMinutes(1));
+        old.Disconnected(T0.Add(Retention).AddMinutes(1));
 
         // Its only window is pruned, so nothing is known: the silence limit applies, not the grace.
-        Assert.Null(old.ShouldStop(T0.Add(Sleep).AddMinutes(2)));
+        Assert.Null(old.ShouldStop(T0.Add(Retention).AddMinutes(2)));
     }
 
     [Theory]
@@ -249,7 +337,7 @@ public class WindowPresenceTests
     {
         Assert.Equal(TimeSpan.FromSeconds(45), WindowPresence.DefaultCloseGrace);
         Assert.Equal(TimeSpan.FromMinutes(30), WindowPresence.DefaultSilenceLimit);
-        Assert.Equal(TimeSpan.FromHours(12), WindowPresence.DefaultSleepLimit);
+        Assert.Equal(TimeSpan.FromHours(12), WindowPresence.DefaultRetention);
 
         var presence = new WindowPresence();
         presence.Connected();
@@ -263,8 +351,8 @@ public class WindowPresenceTests
     [Fact]
     public void Constructor_Should_RejectLimitsOutOfOrder()
     {
-        Assert.Throws<ArgumentOutOfRangeException>(() => new WindowPresence(TimeSpan.Zero, Silence, Sleep));
-        Assert.Throws<ArgumentOutOfRangeException>(() => new WindowPresence(Grace, TimeSpan.FromSeconds(10), Sleep));
+        Assert.Throws<ArgumentOutOfRangeException>(() => new WindowPresence(TimeSpan.Zero, Silence, Retention));
+        Assert.Throws<ArgumentOutOfRangeException>(() => new WindowPresence(Grace, TimeSpan.FromSeconds(10), Retention));
         Assert.Throws<ArgumentOutOfRangeException>(() => new WindowPresence(Grace, Silence, TimeSpan.FromMinutes(10)));
     }
 }

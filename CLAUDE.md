@@ -190,8 +190,12 @@ hidden pages (a window behind Arena in full screen counts), which drops the conn
 report `visible|hidden|closed` by beacon (`POST /window/{id}/...`, in `App.razor`), and
 `WindowPresence` decides:
 - all windows `closed`: stop after 45 s;
-- quiet after `hidden`: asleep, wait 12 h;
+- quiet after `hidden`: asleep, wait for it however long (#118: a minimised app stays open);
 - quiet while visible, or never reported: stop after 30 min.
+
+**Machine sleep counts toward no limit** (#118). The process sleeps too, so its first check on waking
+saw the night gone and stopped before the window reconnected. `StopWhenNoWindowService` spots a check
+far later than due and calls `WindowPresence.Slept`. Any new time limit must go through it.
 
 It counts *connections*, not circuits (`OnCircuitClosedAsync` means nothing here). Nothing stops before
 a first window connects. Every stop is logged with its reason.

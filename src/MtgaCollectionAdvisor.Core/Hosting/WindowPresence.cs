@@ -11,9 +11,6 @@ public enum StopReason
 
     /// <summary>No window for the silence limit, and the last one heard from was visible or none ever reported.</summary>
     NoWindow,
-
-    /// <summary>A window went quiet while hidden and did not wake up within the sleep limit.</summary>
-    AsleepTooLong,
 }
 
 /// <summary>
@@ -26,7 +23,12 @@ public enum StopReason
 /// connection. So each page reports its state with beacons - visible, hidden, closed - and
 /// a window that went quiet after saying "hidden" is asleep, not gone. Only a close stops
 /// the app quickly; the other cases wait long, because an app left running is harmless (a
-/// new launch finds it) and one stopped under a sleeping window is the bug.
+/// new launch finds it) and one stopped under a sleeping window is the bug. A hidden window
+/// is waited for however long it stays hidden (#118): a minimised desktop app stays open.
+///
+/// Time the machine spent asleep counts toward no limit (#118). The process sleeps with it, so
+/// its first check on waking would otherwise see the whole night gone and stop before the
+/// window has woken up to reconnect.
 ///
 /// Nothing stops until a first window has connected, so a run nobody opens (smoke tests
 /// with <c>--no-browser</c>) stays up.
@@ -35,7 +37,15 @@ public sealed class WindowPresence
 {
     public static readonly TimeSpan DefaultCloseGrace = TimeSpan.FromSeconds(45);
     public static readonly TimeSpan DefaultSilenceLimit = TimeSpan.FromMinutes(30);
-    public static readonly TimeSpan DefaultSleepLimit = TimeSpan.FromHours(12);
+
+    /// <summary>
+    /// How long a window not heard from is remembered, and its circuit kept for it to resume
+    /// where it was. A window back later than this reloads, losing only the screen's state.
+    /// </summary>
+    public static readonly TimeSpan DefaultRetention = TimeSpan.FromHours(12);
+
+    /// <summary>A check this much later than due means the machine slept (or its clock jumped) in between.</summary>
+    public static readonly TimeSpan SleepDetectionSlack = TimeSpan.FromMinutes(1);
 
     /// <summary>Any local page can send beacons; this keeps the table from growing without bound.</summary>
     public const int MaxTrackedWindows = 32;
@@ -44,27 +54,54 @@ public sealed class WindowPresence
 
     private readonly TimeSpan _closeGrace;
     private readonly TimeSpan _silenceLimit;
-    private readonly TimeSpan _sleepLimit;
+    private readonly TimeSpan _retention;
     private readonly Lock _lock = new();
     private readonly Dictionary<string, (WindowState State, DateTimeOffset At)> _windows = new(StringComparer.Ordinal);
     private int _open;
     private bool _everConnected;
     private DateTimeOffset? _emptySince;
 
-    public WindowPresence() : this(DefaultCloseGrace, DefaultSilenceLimit, DefaultSleepLimit) { }
+    public WindowPresence() : this(DefaultCloseGrace, DefaultSilenceLimit, DefaultRetention) { }
 
-    public WindowPresence(TimeSpan closeGrace, TimeSpan silenceLimit, TimeSpan sleepLimit)
+    public WindowPresence(TimeSpan closeGrace, TimeSpan silenceLimit, TimeSpan retention)
     {
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(closeGrace, TimeSpan.Zero);
         ArgumentOutOfRangeException.ThrowIfLessThan(silenceLimit, closeGrace);
-        ArgumentOutOfRangeException.ThrowIfLessThan(sleepLimit, silenceLimit);
+        ArgumentOutOfRangeException.ThrowIfLessThan(retention, silenceLimit);
         _closeGrace = closeGrace;
         _silenceLimit = silenceLimit;
-        _sleepLimit = sleepLimit;
+        _retention = retention;
     }
 
     public TimeSpan SilenceLimit => _silenceLimit;
-    public TimeSpan SleepLimit => _sleepLimit;
+
+    /// <summary>
+    /// Whether the gap between two checks, run every <paramref name="checkEvery"/>, means the
+    /// machine slept in between. A clock set forward reads the same, and is handled the same.
+    /// </summary>
+    public static bool SleptBetween(DateTimeOffset previousCheck, DateTimeOffset now, TimeSpan checkEvery) =>
+        now - previousCheck > checkEvery + SleepDetectionSlack;
+
+    /// <summary>
+    /// The machine slept from <paramref name="from"/> to <paramref name="until"/>: everything
+    /// recorded by then moves forward by the time asleep, as if it had not happened. Anything
+    /// recorded after waking (a beacon, a reconnect) stays as it is.
+    /// </summary>
+    public void Slept(DateTimeOffset from, DateTimeOffset until)
+    {
+        var asleep = until - from;
+        if (asleep <= TimeSpan.Zero) return;
+
+        lock (_lock)
+        {
+            if (_emptySince is { } emptySince && emptySince <= from) _emptySince = emptySince + asleep;
+
+            foreach (var (id, window) in _windows.Where(w => w.Value.At <= from).ToList())
+            {
+                _windows[id] = (window.State, window.At + asleep);
+            }
+        }
+    }
 
     /// <summary>A page's own id: a UUID in practice, anything short and plain accepted.</summary>
     public static bool IsValidWindowId(string? id) =>
@@ -114,11 +151,11 @@ public sealed class WindowPresence
     {
         lock (_lock)
         {
-            // Forget windows not heard from for the sleep limit, counted up to the last moment a
+            // Forget windows not heard from for the retention, counted up to the last moment a
             // window was connected: a sleeping window says nothing after "hidden", and must not
             // be forgotten while the app waits for it.
             var lastConnected = _open > 0 || _emptySince is null ? now : _emptySince.Value;
-            foreach (var stale in _windows.Where(w => lastConnected - w.Value.At > _sleepLimit).Select(w => w.Key).ToList())
+            foreach (var stale in _windows.Where(w => lastConnected - w.Value.At > _retention).Select(w => w.Key).ToList())
             {
                 _windows.Remove(stale);
             }
@@ -127,11 +164,9 @@ public sealed class WindowPresence
 
             var live = _windows.Values.Where(w => w.State != WindowState.Closed).ToList();
 
-            // Went quiet while hidden: the browser froze it. It wakes up when the player comes back.
-            if (live.Any(w => w.State == WindowState.Hidden))
-            {
-                return now - emptySince >= _sleepLimit ? StopReason.AsleepTooLong : null;
-            }
+            // Went quiet while hidden: the browser froze it. It wakes up when the player comes back,
+            // however long that takes (#118).
+            if (live.Any(w => w.State == WindowState.Hidden)) return null;
 
             // Every window that ever spoke said it closed. The grace lets a reload's new page connect.
             if (_windows.Count > 0 && live.Count == 0)
