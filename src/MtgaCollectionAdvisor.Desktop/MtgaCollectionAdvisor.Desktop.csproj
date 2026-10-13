@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk.Razor">
+
+  <!-- Spike for #119: the same Razor components as the Web project, hosted in a window the
+       process owns (WinForms + WebView2) instead of a browser pointed at a local server. -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <ApplicationIcon>..\MtgaCollectionAdvisor.Web\app.ico</ApplicationIcon>
+    <RootNamespace>MtgaCollectionAdvisor.Desktop</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\MtgaCollectionAdvisor.Core\MtgaCollectionAdvisor.Core.csproj" />
+    <ProjectReference Include="..\MtgaCollectionAdvisor.Web\MtgaCollectionAdvisor.Web.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebView.WindowsForms" Version="10.0.110" />
+  </ItemGroup>
+
+</Project>

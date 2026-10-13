@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <base href="/" />
+    <title>MTGA Deck Advisor</title>
+    <meta name="color-scheme" content="dark light" />
+    <!-- The same theme switch as the Web project's App.razor. -->
+    <script>
+        (function () {
+            var root = document.documentElement;
+            try { var saved = localStorage.getItem("theme"); if (saved) root.dataset.theme = saved; } catch (e) { }
+            window.advisorTheme = {
+                toggle: function () {
+                    var current = root.dataset.theme
+                        || (matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark");
+                    var next = current === "light" ? "dark" : "light";
+                    root.dataset.theme = next;
+                    try { localStorage.setItem("theme", next); } catch (e) { }
+                }
+            };
+        })();
+    </script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/mana-font@latest/css/mana.css" />
+    <link rel="stylesheet" href="app.css" />
+    <link rel="stylesheet" href="MtgaCollectionAdvisor.Web.styles.css" />
+</head>
+
+<body>
+    <div id="app"></div>
+
+    <!-- No reconnect modal and no window beacons: there is no connection to lose. -->
+    <div id="blazor-error-ui" style="display:none">
+        Something went wrong. <a href="" class="reload">Reload</a>
+    </div>
+    <script src="_framework/blazor.webview.js"></script>
+
+    <!-- Card and pack previews inside a dialog (#84): copied from App.razor. -->
+    <script>
+        (function () {
+            var NAMES = ".modal-panel .card-name-hover, .modal-panel .pack-name-hover";
+            function previewOf(name) {
+                return name.classList.contains("pack-name-hover")
+                    ? name.closest(".pack") && name.closest(".pack").querySelector(".pack-preview")
+                    : name.querySelector(".card-preview");
+            }
+            function place(e) {
+                var name = e.target.closest && e.target.closest(NAMES);
+                var preview = name && previewOf(name);
+                if (!preview) return;
+                requestAnimationFrame(function () {
+                    var r = name.getBoundingClientRect(), w = preview.offsetWidth, h = preview.offsetHeight, gap = 14, edge = 8;
+                    var x = r.right + gap;
+                    if (x + w > innerWidth - edge) x = r.left - gap - w;
+                    x = Math.max(edge, Math.min(x, innerWidth - w - edge));
+                    var y = Math.max(edge, Math.min(r.top + r.height / 2 - h / 2, innerHeight - h - edge));
+                    preview.style.left = x + "px";
+                    preview.style.top = y + "px";
+                });
+            }
+            document.addEventListener("mouseover", place);
+            document.addEventListener("focusin", place);
+        })();
+    </script>
+</body>
+
+</html>
