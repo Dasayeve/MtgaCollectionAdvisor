@@ -4,9 +4,14 @@ using MtgaCollectionAdvisor.Core.Configuration;
 using MtgaCollectionAdvisor.Core.Export;
 using MtgaCollectionAdvisor.Core.Hosting;
 using MtgaCollectionAdvisor.Core.Storage;
+using MtgaCollectionAdvisor.UI.Components;
+using MtgaCollectionAdvisor.UI.Services;
 using MtgaCollectionAdvisor.Web.Components;
 using MtgaCollectionAdvisor.Web.Services;
 using Velopack;
+
+// The macOS host (#119): the app's screens (MtgaCollectionAdvisor.UI) served on localhost and
+// opened in a browser window. Windows has its own window instead: MtgaCollectionAdvisor.Desktop.
 
 // First, before anything else runs: the installer starts the exe with hook arguments while it
 // installs, updates or uninstalls, and this handles them and exits.
@@ -59,7 +64,11 @@ builder.Services.AddSingleton(AppConfig.Default with
     CreatorVideosEnabled = builder.Configuration.GetValue("Features:CreatorVideos", false)
 });
 builder.Services.AddSingleton<AdvisorSession>();
-builder.Services.AddSingleton<AppUpdater>();
+// --no-browser: the window already open reconnects to the restarted app (the reconnect script
+// reloads when its old circuit is rejected), so a second one is not wanted.
+builder.Services.AddSingleton(services => new AppUpdater(
+    services.GetRequiredService<ILogger<AppUpdater>>(), services.GetRequiredService<ILoggerFactory>(), ["--no-browser"]));
+builder.Services.AddScoped<IExportSaver, WebExportSaver>();
 
 // The window is only a browser pointed at this server; these stop the server once it has
 // been closed, so nothing keeps watching MTG Arena with no window open.
@@ -78,7 +87,7 @@ startupLog.LogInformation("Database: {Database}", databasePath);
 app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
 app.UseAntiforgery();
 app.MapStaticAssets();
-app.MapRazorComponents<App>().AddInteractiveServerRenderMode();
+app.MapRazorComponents<App>().AddInteractiveServerRenderMode().AddAdditionalAssemblies(typeof(Routes).Assembly);
 app.MapGet("/instance", () => InstanceMarker);
 
 // Each page reports whether it is visible, hidden or closing (#99), so a frozen window is told
@@ -96,16 +105,11 @@ app.MapPost("/window/{id}/{state}", (string id, string state, WindowPresence pre
     return Results.NoContent();
 });
 
-// Downloads for the Export menu. Plain links with a download attribute, which Blazor
-// leaves to the browser rather than routing.
-app.MapGet("/export/collection.txt", (AdvisorSession session, CancellationToken ct) =>
-    Download(session, async (export, token) => await export.CollectionTextAsync(token), ct));
-app.MapGet("/export/collection.json", (AdvisorSession session, CancellationToken ct) =>
-    Download(session, async (export, token) => await export.CollectionJsonAsync(token), ct));
-app.MapGet("/export/user-decks.zip", (AdvisorSession session, CancellationToken ct) =>
-    Download(session, async (export, token) => await export.UserDecksAsync(token), ct));
-app.MapGet("/export/arena-decks.zip", (AdvisorSession session, bool? all, CancellationToken ct) =>
-    Download(session, (export, token) => export.ArenaDecksAsync(all == true, token), ct));
+// The Export menu's files (WebExportSaver loads these): attachments, so the page stays put.
+foreach (var kind in Enum.GetValues<ExportKind>())
+{
+    app.MapGet("/" + WebExportSaver.PathFor(kind), (AdvisorSession session, CancellationToken ct) => Download(session, kind, ct));
+}
 
 await app.Services.GetRequiredService<AdvisorSession>().InitializeAsync();
 
@@ -123,11 +127,10 @@ app.Run();
 // applied now, so the next start is the new version.
 updater.ApplyOnExitIfReady();
 
-static async Task<IResult> Download(
-    AdvisorSession session, Func<DataExportService, CancellationToken, Task<ExportFile?>> write, CancellationToken ct)
+static async Task<IResult> Download(AdvisorSession session, ExportKind kind, CancellationToken ct)
 {
     if (session.DataExport is not { } export) return Results.Problem("The app has not finished starting.");
-    if (await write(export, ct) is not { } file) return Results.Problem("Nothing to export yet.", statusCode: 404);
+    if (await export.ExportAsync(kind, ct) is not { } file) return Results.Problem("Nothing to export yet.", statusCode: 404);
     return Results.File(file.Content, file.ContentType, file.FileName);
 }
 

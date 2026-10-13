@@ -1,6 +1,6 @@
 using MtgaCollectionAdvisor.Core.Hosting;
 
-namespace MtgaCollectionAdvisor.Web.Services;
+namespace MtgaCollectionAdvisor.UI.Services;
 
 /// <summary>
 /// Writes warnings, errors and the app's startup lines to a daily file (#52): the installed app

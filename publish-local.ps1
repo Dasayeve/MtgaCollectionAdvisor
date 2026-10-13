@@ -5,14 +5,16 @@ $ErrorActionPreference = 'Stop'
 
 $root = $PSScriptRoot
 $out = Join-Path $root 'publish\MtgaCollectionAdvisor'
-$exe = Join-Path $out 'MtgaCollectionAdvisor.Web.exe'
+$exe = Join-Path $out 'MtgaDeckAdvisor.exe'
 
-# A running instance locks the exe it was started from; closing the window does not free
-# it for up to 45 s, so stop it outright.
-Get-Process MtgaCollectionAdvisor.Web -ErrorAction SilentlyContinue | Stop-Process -Force
+# A running instance locks the exe it was started from, so stop it outright: the desktop app,
+# and a browser-hosted one left from before #119.
+Get-Process MtgaDeckAdvisor, MtgaCollectionAdvisor.Web -ErrorAction SilentlyContinue | Stop-Process -Force
 Start-Sleep -Milliseconds 500
+# From scratch, so nothing an earlier build left (the browser-hosted one's files) ships along.
+Remove-Item $out -Recurse -Force -ErrorAction SilentlyContinue
 
-dotnet publish (Join-Path $root 'src\MtgaCollectionAdvisor.Web') -c Release -r win-x64 --self-contained `
+dotnet publish (Join-Path $root 'src\MtgaCollectionAdvisor.Desktop') -c Release -r win-x64 --self-contained `
     -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o $out --nologo -v quiet
 if ($LASTEXITCODE -ne 0) { throw "dotnet publish failed with exit code $LASTEXITCODE" }
 

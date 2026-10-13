@@ -3,46 +3,20 @@ using System.Diagnostics;
 namespace MtgaCollectionAdvisor.Web.Services;
 
 /// <summary>
-/// Chromium's --app mode gives a plain window with no address bar or tabs, so the tool
-/// feels like a desktop app. Falls back to the default browser when neither is present.
+/// The macOS window: Chromium's --app mode gives a plain window with no address bar or tabs.
+/// Falls back to the default browser when neither is installed, which is also what a
+/// development run on Windows gets (the Windows app is MtgaCollectionAdvisor.Desktop, #119).
 /// </summary>
 public static class AppWindowLaunch
 {
-    private static readonly (string WindowsCommand, string MacAppName)[] Browsers =
-    [
-        ("msedge", "Microsoft Edge"),
-        ("chrome", "Google Chrome"),
-    ];
+    private static readonly string[] MacBrowsers = ["Microsoft Edge", "Google Chrome"];
 
     private const string WindowSize = "--window-size=1500,950";
 
     public static void Open(string url)
     {
-        var opened = OperatingSystem.IsMacOS() ? TryOpenMac(url) : TryOpenWindows(url);
-        if (!opened) Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
-    }
-
-    /// <summary>The browser by command name; a started process is success.</summary>
-    private static bool TryOpenWindows(string url)
-    {
-        foreach (var (command, _) in Browsers)
-        {
-            try
-            {
-                var process = Process.Start(new ProcessStartInfo(command)
-                {
-                    UseShellExecute = true,
-                    Arguments = $"--app={url} {WindowSize}"
-                });
-                if (process is not null) return true;
-            }
-            catch
-            {
-                // Browser not installed - try the next one.
-            }
-        }
-
-        return false;
+        if (OperatingSystem.IsMacOS() && TryOpenMac(url)) return;
+        Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
     }
 
     /// <summary>
@@ -52,7 +26,7 @@ public static class AppWindowLaunch
     /// </summary>
     private static bool TryOpenMac(string url)
     {
-        foreach (var (_, appName) in Browsers)
+        foreach (var appName in MacBrowsers)
         {
             using var process = Process.Start(new ProcessStartInfo("/usr/bin/open")
             {

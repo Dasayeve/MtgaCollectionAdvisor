@@ -1,7 +1,7 @@
 using System.Globalization;
 using System.Runtime.InteropServices;
 
-namespace MtgaCollectionAdvisor.Web.Services;
+namespace MtgaCollectionAdvisor.UI.Services;
 
 /// <summary>
 /// The Windows region settings, read locally. Windows keeps two: the home location (Settings →

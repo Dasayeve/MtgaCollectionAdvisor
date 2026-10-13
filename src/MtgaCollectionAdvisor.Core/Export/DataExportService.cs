@@ -7,8 +7,11 @@ using MtgaCollectionAdvisor.Core.Storage;
 
 namespace MtgaCollectionAdvisor.Core.Export;
 
-/// <summary>A file ready to hand to the browser as a download.</summary>
+/// <summary>A file ready to save: a Save dialog on the desktop, a download in the browser.</summary>
 public sealed record ExportFile(string FileName, string ContentType, byte[] Content);
+
+/// <summary>The Export menu's entries, one per file the app can write out.</summary>
+public enum ExportKind { CollectionText, CollectionJson, UserDecks, ArenaDecks, AllArenaDecks }
 
 /// <summary>
 /// Gathers what the user owns and has built and writes it out. Reads only: nothing here
@@ -17,6 +20,17 @@ public sealed record ExportFile(string FileName, string ContentType, byte[] Cont
 public sealed class DataExportService(
     CollectionStore collection, CardDatabaseStore cards, CuratedDeckStore decks, ArenaDeckStore arenaDecks)
 {
+    /// <summary>The file for one Export menu entry; null when there is nothing to export (no Arena decks).</summary>
+    public async Task<ExportFile?> ExportAsync(ExportKind kind, CancellationToken ct = default) => kind switch
+    {
+        ExportKind.CollectionText => await CollectionTextAsync(ct),
+        ExportKind.CollectionJson => await CollectionJsonAsync(ct),
+        ExportKind.UserDecks => await UserDecksAsync(ct),
+        ExportKind.ArenaDecks => await ArenaDecksAsync(includeWizards: false, ct),
+        ExportKind.AllArenaDecks => await ArenaDecksAsync(includeWizards: true, ct),
+        _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "Not an export."),
+    };
+
     public async Task<ExportFile> CollectionTextAsync(CancellationToken ct = default)
     {
         var (grouped, _) = await LoadCollectionAsync(ct);

@@ -176,6 +176,53 @@ public sealed class DataExportTests : IAsyncLifetime
         Assert.Equal(["pioneer/Also mine.txt", "standard/Mine.txt"], ReadZip(file.Content).Keys.Order());
     }
 
+    // Each Export menu entry is one kind: the hosts save whatever ExportAsync returns.
+    [Theory]
+    [InlineData(ExportKind.CollectionText)]
+    [InlineData(ExportKind.CollectionJson)]
+    [InlineData(ExportKind.UserDecks)]
+    [InlineData(ExportKind.ArenaDecks)]
+    [InlineData(ExportKind.AllArenaDecks)]
+    public async Task ExportAsync_Should_ReturnTheSameFileAsTheNamedMethod(ExportKind kind)
+    {
+        var decks = new CuratedDeckStore(_database);
+        await decks.AddDeckAsync(UserDeck("Mine", Formats.Standard, ("Mountain", 20, DeckBoard.Main)));
+        var arenaDecks = new ArenaDeckStore(_database);
+        await arenaDecks.ReplaceAsync(
+            [new ArenaDeck("a", "Mine", "Standard", false, [], [], [new ArenaCard(300, 20)], []),
+             new ArenaDeck("b", "Precon", "Standard", true, [], [], [new ArenaCard(300, 20)], [])],
+            DateTimeOffset.UtcNow);
+        var service = new DataExportService(new CollectionStore(_database), new CardDatabaseStore(_database), decks, arenaDecks);
+
+        var expected = kind switch
+        {
+            ExportKind.CollectionText => await service.CollectionTextAsync(),
+            ExportKind.CollectionJson => await service.CollectionJsonAsync(),
+            ExportKind.UserDecks => await service.UserDecksAsync(),
+            ExportKind.ArenaDecks => await service.ArenaDecksAsync(includeWizards: false),
+            _ => await service.ArenaDecksAsync(includeWizards: true),
+        };
+        var file = await service.ExportAsync(kind);
+
+        Assert.NotNull(expected);
+        Assert.NotNull(file);
+        Assert.Equal(expected.FileName, file.FileName);
+        Assert.Equal(expected.ContentType, file.ContentType);
+        // The JSON carries the moment it was written, and a zip stamps each entry with the time:
+        // compare what they hold, not their bytes.
+        if (file.ContentType == "application/zip") Assert.Equal(ReadZip(expected.Content), ReadZip(file.Content));
+        else if (kind != ExportKind.CollectionJson) Assert.Equal(expected.Content, file.Content);
+    }
+
+    [Fact]
+    public async Task ExportAsync_Should_Throw_When_KindIsUnknown()
+    {
+        var service = new DataExportService(
+            new CollectionStore(_database), new CardDatabaseStore(_database), new CuratedDeckStore(_database), new ArenaDeckStore(_database));
+
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => service.ExportAsync((ExportKind)99));
+    }
+
     private static CollectionSnapshot Collection(params (int GrpId, int Qty)[] owned) =>
         new(owned.ToDictionary(o => o.GrpId, o => o.Qty), WildcardInventory.Empty, DateTimeOffset.UtcNow);
 

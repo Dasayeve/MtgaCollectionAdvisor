@@ -2,7 +2,7 @@ using MtgaCollectionAdvisor.Core.Hosting;
 using Velopack;
 using Velopack.Sources;
 
-namespace MtgaCollectionAdvisor.Web.Services;
+namespace MtgaCollectionAdvisor.UI.Services;
 
 /// <summary>
 /// Keeps an installed copy current. It checks GitHub Releases once per start, downloads a
@@ -15,11 +15,14 @@ public sealed class AppUpdater
     private readonly ILogger<AppUpdater> _log;
     private readonly ILogger _lifecycleLog;
     private readonly UpdateManager _manager;
+    private readonly IReadOnlyList<string> _restartArguments;
     private VelopackAsset? _ready;
 
-    public AppUpdater(ILogger<AppUpdater> log, ILoggerFactory loggers)
+    /// <param name="restartArguments">What the restarted app is started with; the host knows.</param>
+    public AppUpdater(ILogger<AppUpdater> log, ILoggerFactory loggers, IReadOnlyList<string> restartArguments)
     {
         _log = log;
+        _restartArguments = restartArguments;
         _lifecycleLog = loggers.CreateLogger(LogFiles.StartupCategory);
         var source = UpdateSource.OverrideFrom(Environment.GetEnvironmentVariable(UpdateSource.OverrideVariable));
         _manager = source is null
@@ -65,15 +68,13 @@ public sealed class AppUpdater
         }
     }
 
-    /// <summary>Applies the downloaded update and restarts; the open window reloads onto it.</summary>
+    /// <summary>Applies the downloaded update and restarts the app on it.</summary>
     public void RestartToUpdate()
     {
         if (_ready is null) return;
 
-        // --no-browser: the window already open reconnects to the new instance (the reconnect
-        // script reloads when its old circuit is rejected), so a second one is not wanted.
         _lifecycleLog.LogInformation("Stopping: restart to update {Version}", _ready.Version);
-        _manager.ApplyUpdatesAndRestart(_ready, ["--no-browser"]);
+        _manager.ApplyUpdatesAndRestart(_ready, [.. _restartArguments]);
     }
 
     /// <summary>Called once the app has stopped: applies a downloaded update for the next start.</summary>

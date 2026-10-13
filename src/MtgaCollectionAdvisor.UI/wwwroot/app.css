@@ -4,7 +4,7 @@
    size, never from an accent hue. Every text colour passes WCAG AA on its background.
 
    Dark is the default; light applies when Windows is set to light, or when the player
-   picks it (data-theme on <html>, set by advisorTheme in App.razor). The light values are
+   picks it (data-theme on <html>, set by advisorTheme in advisor.js). The light values are
    written twice, for the two ways in, because a media query can't share a rule's body. */
 :root {
     --bg: #161514;
@@ -306,7 +306,7 @@ input[type="checkbox"], input[type="range"] { accent-color: var(--text); }
     box-shadow: var(--shadow);
 }
 
-.menu-options a, .menu-options button {
+.menu-options button {
     display: flex;
     flex-direction: column;
     align-items: flex-start;
@@ -320,9 +320,8 @@ input[type="checkbox"], input[type="range"] { accent-color: var(--text); }
     white-space: normal;
 }
 
-.menu-options a span, .menu-options button span { font-size: 12.5px; color: var(--text-muted); }
-.menu-options a:hover, .menu-options button:hover:not(:disabled) { background: var(--surface-raised); }
-.menu-options a.disabled { opacity: 0.5; pointer-events: none; }
+.menu-options button span { font-size: 12.5px; color: var(--text-muted); }
+.menu-options button:hover:not(:disabled) { background: var(--surface-raised); }
 
 .menu-heading {
     margin-top: var(--space-2);
@@ -1089,7 +1088,7 @@ input[type="checkbox"], input[type="range"] { accent-color: var(--text); }
 }
 
 /* Inside a dialog, previews are fixed to the window so the dialog's scrolling never clips them.
-   App.razor's script puts each beside its name; until then it waits off-screen, never flashing
+   advisor.js puts each beside its name; until then it waits off-screen, never flashing
    in the wrong place. */
 .modal-panel .card-preview,
 .modal-panel .pack-preview {

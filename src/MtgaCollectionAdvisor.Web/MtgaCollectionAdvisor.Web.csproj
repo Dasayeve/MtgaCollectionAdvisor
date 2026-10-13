@@ -1,11 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
 
+  <!-- The macOS host (#119): MtgaCollectionAdvisor.UI's screens, served on localhost and opened
+       in a browser window. The Windows app is MtgaCollectionAdvisor.Desktop. -->
   <ItemGroup>
     <ProjectReference Include="..\MtgaCollectionAdvisor.Core\MtgaCollectionAdvisor.Core.csproj" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <PackageReference Include="Velopack" Version="1.2.158" />
+    <ProjectReference Include="..\MtgaCollectionAdvisor.UI\MtgaCollectionAdvisor.UI.csproj" />
   </ItemGroup>
 
   <PropertyGroup>
@@ -13,16 +12,6 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <BlazorDisableThrowNavigationException>true</BlazorDisableThrowNavigationException>
-    <ApplicationIcon>app.ico</ApplicationIcon>
-  </PropertyGroup>
-
-  <!-- A console app gets a terminal window next to its own, and closing that window kills the
-       server, so the release workflow builds without one (-p:WindowsAppNoConsole=true).
-       OutputType must stay Exe: Blazor's framework files (blazor.web.js) are only added to
-       Exe projects, and a WinExe build loads with no button working and no error (#54).
-       This is the flag the SDK itself sets for WinExe to make the app host a GUI program. -->
-  <PropertyGroup Condition="'$(WindowsAppNoConsole)' == 'true'">
-    <_UseWindowsGraphicalUserInterface>true</_UseWindowsGraphicalUserInterface>
   </PropertyGroup>
 
   <!-- macOS: task_for_pid refuses a binary not signed with the com.apple.security.cs.debugger

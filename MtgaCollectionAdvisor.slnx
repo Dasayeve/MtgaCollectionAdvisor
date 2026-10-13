@@ -2,6 +2,8 @@
   <Folder Name="/src/">
     <Project Path="src/MtgaCollectionAdvisor.Core.Tests/MtgaCollectionAdvisor.Core.Tests.csproj" />
     <Project Path="src/MtgaCollectionAdvisor.Core/MtgaCollectionAdvisor.Core.csproj" />
+    <Project Path="src/MtgaCollectionAdvisor.Desktop/MtgaCollectionAdvisor.Desktop.csproj" />
+    <Project Path="src/MtgaCollectionAdvisor.UI/MtgaCollectionAdvisor.UI.csproj" />
     <Project Path="src/MtgaCollectionAdvisor.Web/MtgaCollectionAdvisor.Web.csproj" />
   </Folder>
 </Solution>

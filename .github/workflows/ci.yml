@@ -31,6 +31,8 @@ jobs:
 
       - run: dotnet test MtgaCollectionAdvisor.slnx --configuration Release --no-build
 
+  # The solution holds the Windows app (MtgaCollectionAdvisor.Desktop, net10.0-windows), which
+  # doesn't build here: macOS builds its own host and runs the tests.
   build-and-test-macos:
     runs-on: macos-latest
     timeout-minutes: 15
@@ -41,6 +43,6 @@ jobs:
         with:
           dotnet-version: 10.0.x
 
-      - run: dotnet build MtgaCollectionAdvisor.slnx --configuration Release
+      - run: dotnet build src/MtgaCollectionAdvisor.Web --configuration Release
 
-      - run: dotnet test MtgaCollectionAdvisor.slnx --configuration Release --no-build
+      - run: dotnet test src/MtgaCollectionAdvisor.Core.Tests --configuration Release

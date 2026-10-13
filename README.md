@@ -109,13 +109,13 @@ collection from a file or a pasted list is planned
 Requires Windows and the [.NET 10 SDK](https://dotnet.microsoft.com/download).
 
 ```bash
-dotnet run --project src/MtgaCollectionAdvisor.Web
+dotnet run --project src/MtgaCollectionAdvisor.Desktop
 dotnet test
 ```
 
-It opens in a browser window and uses the same `advisor.db`; there is no database server.
-Set `MTGA_ADVISOR_DB_PATH` to use another database file, and `MTGA_ADVISOR_PORT` to run next
-to an installed copy (default port 5199).
+It opens the app's window (WebView2, which Windows 11 has) and uses the same `advisor.db`; there
+is no database server. Set `MTGA_ADVISOR_DB_PATH` to use another database file: it runs next to
+an installed copy, one app per database.
 
 Releases are built by `.github/workflows/release.yml` when a `v*` tag is pushed: it runs the
 tests, publishes a self-contained build, smoke-tests it and packs it with

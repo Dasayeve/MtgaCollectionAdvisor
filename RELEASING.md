@@ -23,17 +23,16 @@ next patch.
    ships and is listed in the schema tests. See "Database schema" in `CLAUDE.md`.
 3. The app has been used on this commit (`publish-local.ps1`) and the change works in the
    real window.
-4. **Smoke test what will ship.** CI's own check is only three URLs returning 200.
-   - **Publish:** publish `master` the way `release.yml` does (self-contained single file,
-     `-p:Version=X.Y.Z`, `-p:WindowsAppNoConsole=true`).
-   - **Run on an upgrade:** start the exe on port 5299 with `MTGA_ADVISOR_DB_PATH` pointing at a
-     copy of a database from the previous release (an `advisor.db.backup-v{N}` works). Check that
-     it migrates and logs the new version.
+4. **Smoke test what will ship.** CI's own check only opens the window and closes it.
+   - **Publish:** publish `master` the way `release.yml` does (`src/MtgaCollectionAdvisor.Desktop`,
+     self-contained single file, `-p:Version=X.Y.Z`).
+   - **Run on an upgrade:** start `MtgaDeckAdvisor.exe` with `MTGA_ADVISOR_DB_PATH` pointing at a
+     copy of a database from the previous release (an `advisor.db.backup-v{N}` works), in a folder
+     of its own. Check that it migrates and logs the new version.
    - **Use it:** drive what the release changed, plus Decks, My decks, a deck, Creators and the
-     exports.
+     exports. To drive it from a script, start it with
+     `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=9222` (see `CLAUDE.md`, Testing).
    - **Close it:** close the window and check that the log records the stop.
-   - **Clean up:** delete `Web/bin/Release` and `Web/obj/Release`, because the no-console flag is
-     cached there.
 
 ## Tagging
 
@@ -51,9 +50,10 @@ git push origin v0.2.0
 The **Release** workflow (`.github/workflows/release.yml`) runs on the tag, in about three minutes:
 
 1. It runs the tests. If any fails, nothing is published.
-2. It publishes a self-contained win-x64 build stamped with the tag's version.
+2. It publishes the desktop app (`MtgaCollectionAdvisor.Desktop`), self-contained win-x64,
+   stamped with the tag's version, and smoke-tests it: the window must draw and close.
 3. It packs it with Velopack (`MtgaDeckAdvisor-win-Setup.exe`, a portable zip, and full and
-   delta update packages).
+   delta update packages). The installer adds WebView2 on a machine without it.
 4. It creates the GitHub Release "MTGA Deck Advisor 0.2.0" with those files, `SHA256SUMS.txt`,
    and notes generated from the merged pull requests.
 
@@ -86,9 +86,9 @@ packs a `0.0.<run>-dryrun` version, keeps the result as a workflow artifact
 - **Without publishing:** pack under another `packId` and point `MTGA_ADVISOR_UPDATE_SOURCE` at
   the local `Releases` folder.
 - **The real update loop:** install the previous release next to a test database. Run its
-  `Setup.exe --silent` with `MTGA_ADVISOR_DB_PATH` and `MTGA_ADVISOR_PORT` set, then start
-  `%LOCALAPPDATA%\MtgaDeckAdvisor\current\*.exe` the same way. The app keeps both across Velopack's
-  restart. Uninstall with `Update.exe --uninstall --silent`.
+  `Setup.exe --silent` with `MTGA_ADVISOR_DB_PATH` set (and `MTGA_ADVISOR_PORT`, for a release
+  before the desktop window), then start `%LOCALAPPDATA%\MtgaDeckAdvisor\current\*.exe` the same
+  way. The app keeps them across Velopack's restart. Uninstall with `Update.exe --uninstall --silent`.
 - **Never point an older release at the real database:** it refuses a newer schema.
 - **The desktop shortcut:** installing a release replaces the `MTGA Deck Advisor` shortcut that
   `publish-local.ps1` makes. Run `publish-local.ps1` again afterwards. Uninstalling removes only

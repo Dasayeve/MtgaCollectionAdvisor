@@ -19,8 +19,9 @@ doing anything.
 
 - It reads the memory of the running `MTGA.exe` with `PROCESS_VM_READ` only. It never writes to
   the game's memory, injects code, or touches game files, and it needs no administrator rights.
-- Its interface is a local web server on `localhost` (port 5199), opened in a browser window. It
-  does not listen on other network interfaces.
+- On Windows its interface is its own window (WebView2, rendering local files in-process). It
+  opens no port and runs no web server. The macOS build is a local web server on `localhost`
+  (port 5199) opened in a browser window; it does not listen on other network interfaces.
 - It connects to Scryfall (card data), Archidekt (decks), YouTube's public channel feeds, and
   GitHub (updates and the creators list). It sends nothing about the player to any of them.
 - The player's data stays in `%LOCALAPPDATA%\MtgaCollectionAdvisor`.

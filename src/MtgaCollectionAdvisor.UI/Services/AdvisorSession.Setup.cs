@@ -2,7 +2,7 @@ using MtgaCollectionAdvisor.Core.Memory;
 using MtgaCollectionAdvisor.Core.Models;
 using MtgaCollectionAdvisor.Core.Onboarding;
 
-namespace MtgaCollectionAdvisor.Web.Services;
+namespace MtgaCollectionAdvisor.UI.Services;
 
 /// <summary>What the setup screen shows.</summary>
 public sealed record SetupProgress(

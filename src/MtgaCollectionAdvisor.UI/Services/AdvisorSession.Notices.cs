@@ -1,6 +1,6 @@
 using MtgaCollectionAdvisor.Core.Notices;
 
-namespace MtgaCollectionAdvisor.Web.Services;
+namespace MtgaCollectionAdvisor.UI.Services;
 
 // Maintainer notices (#96): notices.json read within NoticeSchedule, the notice to show chosen by
 // NoticeSelector, dismissals stored for good. Its own event, not Changed: the deck list resets to
