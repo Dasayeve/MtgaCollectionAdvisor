@@ -38,7 +38,8 @@ Run in parallel:
 
 Work out, concretely:
 
-- **Which projects are involved**: `Core` (all logic), `Web` (Blazor UI), `Core.Tests`.
+- **Which projects are involved**: `Core` (all logic), `UI` (the screens and `AdvisorSession`),
+  `Desktop` (the Windows window), `Web` (the macOS host), `Core.Tests`.
 - **What types change** — records, services, stores — with their real names and namespaces.
 - **What SQLite schema changes** are needed, if any. There is no ORM: a schema change is a
   new migration appended to `Storage/Migrations.cs` (never an edit to an existing one), and
@@ -81,7 +82,9 @@ headings are parsed by `/implement-work-item` — do not rename them.
 | Layer | Project | Action |
 |---|---|---|
 | Core | `MtgaCollectionAdvisor.Core` | Create / Modify / None — reason |
-| Web | `MtgaCollectionAdvisor.Web` | Create / Modify / None — reason |
+| UI | `MtgaCollectionAdvisor.UI` | Create / Modify / None — reason |
+| Desktop | `MtgaCollectionAdvisor.Desktop` | Create / Modify / None — reason |
+| Web (macOS host) | `MtgaCollectionAdvisor.Web` | Create / Modify / None — reason |
 | Tests | `MtgaCollectionAdvisor.Core.Tests` | Create / Modify / None — reason |
 
 ---
@@ -111,7 +114,7 @@ headings are parsed by `/implement-work-item` — do not rename them.
 ---
 
 ### Implementation Order
-[Numbered atomic steps: Core → Tests → Web → verification.]
+[Numbered atomic steps: Core → Tests → UI → hosts → verification.]
 
 ---
 

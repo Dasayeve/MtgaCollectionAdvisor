@@ -1,4 +1,4 @@
-namespace MtgaCollectionAdvisor.Web.Services;
+namespace MtgaCollectionAdvisor.UI.Services;
 
 /// <summary>
 /// How the status bar shows a message. A warning is one the player can do something about

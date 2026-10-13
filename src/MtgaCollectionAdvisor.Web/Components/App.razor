@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <base href="/" />
     <title>MTGA Deck Advisor</title>
-    @* Chromium's --app window takes its taskbar icon from these, not from the exe. *@
+    @* Chromium's --app window takes its icon from these. *@
     <link rel="icon" type="image/x-icon" href="favicon.ico" />
     <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png" />
     <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png" />
@@ -14,48 +14,12 @@
     <link rel="manifest" href="manifest.webmanifest" />
     <meta name="theme-color" content="#161514" media="(prefers-color-scheme: dark)" />
     <meta name="theme-color" content="#fbfaf7" media="(prefers-color-scheme: light)" />
-    @* The theme follows Windows unless the player picked one; the pick is set here, before the
-       first paint, so the window never flashes in the other theme. The status bar's button
-       calls advisorTheme.toggle(); nothing about it goes through Blazor. *@
-    <script>
-        (function () {
-            var root = document.documentElement;
-            try { var saved = localStorage.getItem("theme"); if (saved) root.dataset.theme = saved; } catch (e) { }
-            window.advisorTheme = {
-                toggle: function () {
-                    var current = root.dataset.theme
-                        || (matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark");
-                    var next = current === "light" ? "dark" : "light";
-                    root.dataset.theme = next;
-                    try { localStorage.setItem("theme", next); } catch (e) { }
-                }
-            };
-        })();
-    </script>
-    @* The What's new link (#97) glows on the first window after an update, until the pointer
-       or the keyboard reaches it; the version it was seen on is kept like the theme. A dev
-       build has no release notes of its own, so it never glows. *@
-    <script>
-        (function () {
-            var root = document.documentElement;
-            var version = "@MtgaCollectionAdvisor.Core.Hosting.AppVersion.Current";
-            if (version === "dev") return;
-            try { if (localStorage.getItem("releaseNotesSeen") === version) return; } catch (e) { }
-            root.dataset.releaseNotesUnseen = "";
-            function seen(e) {
-                if (!e.target.closest || !e.target.closest(".whats-new")) return;
-                delete root.dataset.releaseNotesUnseen;
-                try { localStorage.setItem("releaseNotesSeen", version); } catch (e) { }
-                document.removeEventListener("mouseover", seen);
-                document.removeEventListener("focusin", seen);
-            }
-            document.addEventListener("mouseover", seen);
-            document.addEventListener("focusin", seen);
-        })();
-    </script>
+    @* Theme, the What's new glow and dialog previews, shared with the desktop window. In the
+       head, so the player's theme is set before the first paint. *@
+    <script src="@Assets["_content/MtgaCollectionAdvisor.UI/advisor.js"]"></script>
     <ResourcePreloader />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/mana-font@latest/css/mana.css" />
-    <link rel="stylesheet" href="@Assets["app.css"]" />
+    <link rel="stylesheet" href="@Assets["_content/MtgaCollectionAdvisor.UI/app.css"]" />
     <link rel="stylesheet" href="@Assets["MtgaCollectionAdvisor.Web.styles.css"]" />
     <ImportMap />
     <HeadOutlet @rendermode="InteractiveServer" />
@@ -94,36 +58,6 @@
             addEventListener("pagehide", function () { report("closed"); });
             // Back from the back/forward cache: the page that said "closed" is alive again.
             addEventListener("pageshow", function (e) { if (e.persisted) reportVisibility(); });
-        })();
-    </script>
-    @* Card and pack previews inside a dialog (#84) are position: fixed, so the dialog's scrolling
-       never clips them; this puts each beside the name under the mouse, on whichever side has
-       room, and inside the window. Plain DOM, no Blazor: CSS still decides when they show. *@
-    <script>
-        (function () {
-            var NAMES = ".modal-panel .card-name-hover, .modal-panel .pack-name-hover";
-            function previewOf(name) {
-                return name.classList.contains("pack-name-hover")
-                    ? name.closest(".pack") && name.closest(".pack").querySelector(".pack-preview")
-                    : name.querySelector(".card-preview");
-            }
-            function place(e) {
-                var name = e.target.closest && e.target.closest(NAMES);
-                var preview = name && previewOf(name);
-                if (!preview) return;
-                // After the hover rule has shown it, so it has a size to measure.
-                requestAnimationFrame(function () {
-                    var r = name.getBoundingClientRect(), w = preview.offsetWidth, h = preview.offsetHeight, gap = 14, edge = 8;
-                    var x = r.right + gap;
-                    if (x + w > innerWidth - edge) x = r.left - gap - w;
-                    x = Math.max(edge, Math.min(x, innerWidth - w - edge));
-                    var y = Math.max(edge, Math.min(r.top + r.height / 2 - h / 2, innerHeight - h - edge));
-                    preview.style.left = x + "px";
-                    preview.style.top = y + "px";
-                });
-            }
-            document.addEventListener("mouseover", place);
-            document.addEventListener("focusin", place);
         })();
     </script>
 </body>

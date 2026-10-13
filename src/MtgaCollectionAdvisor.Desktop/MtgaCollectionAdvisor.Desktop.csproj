@@ -1,0 +1,43 @@
+<Project Sdk="Microsoft.NET.Sdk.Razor">
+
+  <!-- The Windows app (#119): a window the process owns, with MtgaCollectionAdvisor.UI's screens
+       rendered in-process by WebView2. No local server, no port, no browser: closing the window
+       ends the app. -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>MtgaCollectionAdvisor.Desktop</RootNamespace>
+    <!-- The installer's main exe (mainExe in release.yml's vpk pack). Updating
+         from the browser-hosted app (MtgaCollectionAdvisor.Web.exe) rewrites the shortcuts to
+         it: checked on #119 before the rename. -->
+    <AssemblyName>MtgaDeckAdvisor</AssemblyName>
+    <ApplicationIcon>app.ico</ApplicationIcon>
+    <!-- Packages' API docs (WebView2's .xml) have no place next to the exe. -->
+    <AllowedReferenceRelatedFileExtensions>.pdb</AllowedReferenceRelatedFileExtensions>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\MtgaCollectionAdvisor.Core\MtgaCollectionAdvisor.Core.csproj" />
+    <ProjectReference Include="..\MtgaCollectionAdvisor.UI\MtgaCollectionAdvisor.UI.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="appsettings.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebView.WindowsForms" Version="10.0.110" />
+  </ItemGroup>
+
+  <!-- The WebView2 package always references its WPF control too. This window is WinForms, and
+       that reference only brings a WindowsBase version conflict (warning MSB3277). -->
+  <Target Name="DropWebView2Wpf" BeforeTargets="ResolveAssemblyReferences">
+    <ItemGroup>
+      <Reference Remove="@(Reference)" Condition="'%(Filename)' == 'Microsoft.Web.WebView2.Wpf'" />
+    </ItemGroup>
+  </Target>
+
+</Project>

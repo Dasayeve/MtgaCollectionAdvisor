@@ -1,7 +1,9 @@
+@using MtgaCollectionAdvisor.Core.Export
 @inherits LayoutComponentBase
 @implements IDisposable
 @inject AdvisorSession Session
 @inject AppUpdater Updater
+@inject IExportSaver Exports
 
 @* On a first run the setup screen is the whole window: no top bar or buttons to wander off to. *@
 @if (Session.Setup is not null)
@@ -55,8 +57,8 @@ else
                 </button>
 
                 @* The occasional actions, out of the way of the three used every session.
-                   Exports are plain download links: the files are written by the /export
-                   endpoints, and Blazor leaves an anchor with a download attribute to the browser. *@
+                   Exports go to the host (IExportSaver): a Save dialog in the desktop window,
+                   a download in the browser. *@
                 <div class="menu">
                     <button aria-haspopup="true" aria-expanded="@(_showMenu ? "true" : "false")"
                             @onclick="() => _showMenu = !_showMenu">
@@ -73,33 +75,29 @@ else
                             </button>
 
                             <div class="menu-heading">Export</div>
-                            <a role="menuitem" href="export/collection.txt" download
-                               class="@(hasCollection ? "" : "disabled")" @onclick="() => _showMenu = false">
+                            <button role="menuitem" disabled="@(!hasCollection)" @onclick="() => ExportAsync(ExportKind.CollectionText)">
                                 Collection <span>Arena list (.txt)</span>
-                            </a>
-                            <a role="menuitem" href="export/collection.json" download
-                               class="@(hasCollection ? "" : "disabled")" @onclick="() => _showMenu = false">
+                            </button>
+                            <button role="menuitem" disabled="@(!hasCollection)" @onclick="() => ExportAsync(ExportKind.CollectionJson)">
                                 Collection <span>With wildcards (.json)</span>
-                            </a>
-                            <a role="menuitem" href="export/user-decks.zip" download @onclick="() => _showMenu = false">
+                            </button>
+                            <button role="menuitem" @onclick="() => ExportAsync(ExportKind.UserDecks)">
                                 My decks <span>One file per deck (.zip)</span>
-                            </a>
+                            </button>
                             @* Arena writes its saved decks to Player.log at login; the last list seen is kept. *@
                             @{ var arenaCaptured = Session.ArenaDecksCapturedAt; }
-                            <a role="menuitem" href="export/arena-decks.zip" download
-                               class="@(arenaCaptured is null ? "disabled" : "")" @onclick="() => _showMenu = false">
+                            <button role="menuitem" disabled="@(arenaCaptured is null)" @onclick="() => ExportAsync(ExportKind.ArenaDecks)">
                                 Decks saved in Arena
                                 <span>@(arenaCaptured is { } at ? $"Read from Player.log on {at.ToLocalTime():g} (.zip)" : "Log in to MTG Arena first")</span>
-                            </a>
-                            <a role="menuitem" href="export/arena-decks.zip?all=true" download
-                               class="@(arenaCaptured is null ? "disabled" : "")" @onclick="() => _showMenu = false">
+                            </button>
+                            <button role="menuitem" disabled="@(arenaCaptured is null)" @onclick="() => ExportAsync(ExportKind.AllArenaDecks)">
                                 Decks saved in Arena, with Wizards' decks <span>Adds precons and suggested decks (.zip)</span>
-                            </a>
+                            </button>
                         </div>
                     }
                 </div>
 
-                @* Handled in the page, not by Blazor: see advisorTheme in App.razor. The icon shows
+                @* Handled in the page, not by Blazor: see advisorTheme in advisor.js. The icon shows
                    the theme a click leads to, and CSS picks it, so it is right from the first paint. *@
                 <button class="theme-switch" title="Switch between the light and dark theme"
                         aria-label="Switch between the light and dark theme" onclick="advisorTheme.toggle()">
@@ -133,7 +131,7 @@ else
                 <span class="update-ready">
                     Version @ready is ready.
                     <button disabled="@Session.IsBusy"
-                            title="@(Session.IsBusy ? "Available once the current operation finishes." : "Restarts the app on the new version. This window reloads by itself.")"
+                            title="@(Session.IsBusy ? "Available once the current operation finishes." : "Restarts the app on the new version.")"
                             @onclick="Updater.RestartToUpdate">
                         Restart to update
                     </button>
@@ -142,7 +140,8 @@ else
 
             <span class="status-links">
                 <span title="MTGA Deck Advisor version">v@(Updater.CurrentVersion)</span>
-                <a class="whats-new" href="@Updater.ReleaseNotesUrl" target="_blank" rel="noopener" title="What changed in this version">What's new</a>
+                <a class="whats-new" href="@Updater.ReleaseNotesUrl" target="_blank" rel="noopener" title="What changed in this version"
+                   data-version="@Updater.CurrentVersion">What's new</a>
                 @* The log files (#52): what to attach when reporting a problem. *@
                 <button class="link" title="Open the folder with the app's log files" @onclick="Session.OpenLogFolder">Logs</button>
                 <a href="https://github.com/Dasayeve/" target="_blank" rel="noopener" title="github.com/Dasayeve">GitHub</a>
@@ -171,6 +170,18 @@ else
         Session.OpenDeckChanged += OnSessionChanged;
         Session.NoticeChanged += OnSessionChanged;
         Updater.Changed += OnSessionChanged;
+    }
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        // The release smoke test waits for this line: the published app really drew its window.
+        if (firstRender) Session.WindowRendered();
+    }
+
+    private Task ExportAsync(ExportKind kind)
+    {
+        _showMenu = false;
+        return Exports.SaveAsync(kind);
     }
 
     private Task RefreshCardsAsync()

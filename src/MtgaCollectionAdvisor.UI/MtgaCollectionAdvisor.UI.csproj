@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk.Razor">
+
+  <!-- The app's screens and the session behind them, shared by both hosts (#119): the desktop
+       window on Windows (MtgaCollectionAdvisor.Desktop) and the browser host on macOS
+       (MtgaCollectionAdvisor.Web). Nothing here knows which one it runs in: what differs
+       comes in through services (IExportSaver, AppUpdater's restart arguments). -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Using Include="Microsoft.Extensions.Logging" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\MtgaCollectionAdvisor.Core\MtgaCollectionAdvisor.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Components.Web" Version="10.0.11" />
+    <PackageReference Include="Velopack" Version="1.2.158" />
+  </ItemGroup>
+
+</Project>

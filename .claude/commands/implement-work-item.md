@@ -55,8 +55,8 @@ dotnet build MtgaCollectionAdvisor.slnx --no-incremental -v minimal
 dotnet test src/MtgaCollectionAdvisor.Core.Tests/MtgaCollectionAdvisor.Core.Tests.csproj
 ```
 
-If the build fails because a running instance locks a DLL, stop the app
-(`taskkill //IM "MtgaCollectionAdvisor.Web.exe" //F`) and retry — that is not a real break.
+If the build fails because a running instance locks a DLL, close that copy (by its PID, never
+by image name: that would also close the user's window) and retry — that is not a real break.
 If the baseline is genuinely broken, stop and report it.
 
 ---
@@ -111,30 +111,33 @@ QA report, and say what you tried. Never delete or skip a failing test.
 dotnet build MtgaCollectionAdvisor.slnx -c Release -v minimal
 ```
 
-Then run it on the test port, so the user's own window on 5199 is left alone (see "Test on
-another port" in `CLAUDE.md`), and check what actually reaches the browser:
+Then run the desktop app on a copy of the database in a folder of its own, so the user's own
+window and data are left alone (see "Testing" in `CLAUDE.md`), with remote debugging on so it can
+be driven:
 
 ```bash
-MTGA_ADVISOR_PORT=5299 dotnet run --project src/MtgaCollectionAdvisor.Web/MtgaCollectionAdvisor.Web.csproj -c Release --no-build -- --no-browser &
-# wait ~15s, then:
-curl -s http://localhost:5299/ -o page.html -w "%{http_code}"
+WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS="--remote-debugging-port=9222" MTGA_ADVISOR_DB_PATH="<copy>\advisor.db" \
+  src/MtgaCollectionAdvisor.Desktop/bin/Release/net10.0-windows/MtgaDeckAdvisor.exe &
 ```
 
-Assert, at minimum:
+Drive the page through the DevTools protocol (`http://127.0.0.1:9222/json`, the page at
+`https://0.0.0.1/`). Assert, at minimum:
 
-- HTTP 200.
-- The markup this issue adds is present.
-- `<!--Blazor:` markers appear **and** `/_framework/blazor.web.js` returns 200 — without
-  either, the page is static and **nothing is clickable, with no error anywhere**. The
-  markers alone are not enough: v0.1.1 had them and shipped without the script (#54).
+- The log next to the copy says `Window rendered`: the window drew, Blazor runs.
+- The markup this issue adds is present, and its controls respond.
 - Features that already worked still render.
+- Closing the window stops the app and logs `Stopping: window closed`.
 
-Stop that copy afterwards by the process listening on 5299
-(`netstat -ano | grep ":5299 .*LISTENING"`, then `taskkill //PID <pid> //F`). Killing by image
-name would also close the user's window.
+Close that copy by its PID or its window. Killing by image name would also close the user's
+window. Native dialogs are reached with UI Automation, never with simulated keystrokes: those
+go to whatever window has the focus.
 
-Click-through paths (typing, clicking, drag) count as verified only if browser automation
-was actually used to drive them. Everything else goes under Manual Testing Required with
+A change to the macOS host (`src/MtgaCollectionAdvisor.Web`) is also checked there:
+`MTGA_ADVISOR_PORT=5299` with the database copy, `<!--Blazor:` markers **and**
+`/_framework/blazor.web.js` returning 200 (#54). Stop it by the PID listening on 5299.
+
+Click-through paths (typing, clicking, drag) count as verified only if they were actually
+driven. Everything else goes under Manual Testing Required with
 concrete steps and expected results, never implied as tested.
 
 Anything touching the memory scanner also needs MTG Arena running; if it is closed, say so

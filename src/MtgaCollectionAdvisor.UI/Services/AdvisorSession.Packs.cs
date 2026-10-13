@@ -1,7 +1,7 @@
 using MtgaCollectionAdvisor.Core.Analysis;
 using MtgaCollectionAdvisor.Core.Models;
 
-namespace MtgaCollectionAdvisor.Web.Services;
+namespace MtgaCollectionAdvisor.UI.Services;
 
 // Suggested packs (#84): which packs would get a deck the most of what it is missing. The rule is
 // PackSuggester's, in Core; this only passes the deck and the session's format through.

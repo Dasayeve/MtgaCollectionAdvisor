@@ -12,32 +12,58 @@ public sealed class ReleaseWorkflowTests
 {
     private static readonly string Root = FindRepositoryRoot();
     private static readonly string Workflow = File.ReadAllText(Path.Combine(Root, ".github", "workflows", "release.yml"));
+    private static readonly string DesktopProject = File.ReadAllText(Path.Combine(Root, "src", "MtgaCollectionAdvisor.Desktop", "MtgaCollectionAdvisor.Desktop.csproj"));
 
     /// <summary>The workflow without its comment lines.</summary>
     private static readonly string WorkflowCode = Regex.Replace(Workflow, @"(?m)^\s*#.*$", "");
+
+    /// <summary>The workflow's code with each command on one line: a trailing backslash continues it.</summary>
+    private static readonly string WorkflowCommands = Regex.Replace(WorkflowCode, @"\\\r?\n\s*", " ");
 
     // Velopack installs to %LOCALAPPDATA%\<packId> and deletes that folder on uninstall; with
     // the data folder's name, uninstalling would take the player's collection and decks with it.
     [Fact]
     public void ReleaseWorkflow_PackId_Should_DifferFromDataFolder()
     {
-        var packs = Regex.Matches(WorkflowCode, @"vpk pack\b[^\n]*(?:\\\r?\n[^\n]*)*");
+        var packs = Regex.Matches(WorkflowCommands, @"vpk pack\b[^\n]*");
 
         Assert.True(packs.Count >= 2, "Both release jobs must run vpk pack.");
         Assert.All(packs, pack => Assert.Matches(@"--packId\s+MtgaDeckAdvisor\b", pack.Value));
         Assert.NotEqual(Database.DataFolderName, "MtgaDeckAdvisor");
     }
 
+    // The installer (vpk) and the in-app updater (the Velopack package) move together, in every
+    // project that references the package.
     [Fact]
     public void ReleaseWorkflow_VpkVersion_Should_MatchVelopackPackage()
     {
-        var project = File.ReadAllText(Path.Combine(Root, "src", "MtgaCollectionAdvisor.Web", "MtgaCollectionAdvisor.Web.csproj"));
-        var package = Regex.Match(project, @"<PackageReference\s+Include=""Velopack""\s+Version=""([^""]+)""");
         var vpk = Regex.Match(Workflow, @"VPK_VERSION:\s*(\S+)");
+        var packages = Directory.GetFiles(Path.Combine(Root, "src"), "*.csproj", SearchOption.AllDirectories)
+            .Select(path => Regex.Match(File.ReadAllText(path), @"<PackageReference\s+Include=""Velopack""\s+Version=""([^""]+)"""))
+            .Where(match => match.Success)
+            .ToList();
 
-        Assert.True(package.Success, "The Web project has no Velopack package reference.");
         Assert.True(vpk.Success, "The workflow does not set VPK_VERSION.");
-        Assert.Equal(package.Groups[1].Value, vpk.Groups[1].Value);
+        Assert.NotEmpty(packages);
+        Assert.All(packages, package => Assert.Equal(vpk.Groups[1].Value, package.Groups[1].Value));
+    }
+
+    // Velopack starts the installed app by this name, and an update from the browser-hosted app
+    // (MtgaCollectionAdvisor.Web.exe) rewrites the shortcuts to it (#119).
+    [Fact]
+    public void ReleaseWorkflow_MainExe_Should_MatchDesktopAssembly()
+    {
+        var assembly = Regex.Match(DesktopProject, @"<AssemblyName>([^<]+)</AssemblyName>");
+
+        Assert.True(assembly.Success, "The Desktop project sets no AssemblyName.");
+        Assert.Matches($@"--mainExe\s+{Regex.Escape(assembly.Groups[1].Value)}\.exe\b", WindowsPack());
+    }
+
+    // Windows 11 has WebView2; the installer adds it to a Windows 10 machine without it.
+    [Fact]
+    public void ReleaseWorkflow_Should_BootstrapWebView2()
+    {
+        Assert.Matches(@"--framework\s+\S*\bwebview2\b", WindowsPack());
     }
 
     // A pull request runs this workflow as a dry run; nothing may leave it but an artifact.
@@ -67,19 +93,24 @@ public sealed class ReleaseWorkflowTests
         Assert.DoesNotContain("GITHUB_TOKEN", job);
     }
 
-    // The console is hidden by a flag the release passes, never by WinExe: a WinExe build
-    // leaves out blazor.web.js and ships with no button working (#54). The smoke test is what
-    // catches that before anything is packed.
+    // The Windows release is the desktop window, a GUI program with no console. The smoke test
+    // runs it and waits for the window to be drawn before anything is packed: v0.1.1 shipped
+    // with no button working and no error anywhere (#54).
     [Fact]
-    public void ReleaseWorkflow_Should_HideConsoleAndSmokeTestBeforePacking()
+    public void ReleaseWorkflow_Should_SmokeTestTheDesktopBeforePacking()
     {
-        var project = File.ReadAllText(Path.Combine(Root, "src", "MtgaCollectionAdvisor.Web", "MtgaCollectionAdvisor.Web.csproj"));
-
-        Assert.DoesNotContain("<OutputType>WinExe", project);
-        Assert.Contains("-p:WindowsAppNoConsole=true", Workflow);
-        Assert.Contains("/_framework/blazor.web.js", Workflow);
+        Assert.Contains("<OutputType>WinExe</OutputType>", DesktopProject);
+        Assert.Contains("dotnet publish src/MtgaCollectionAdvisor.Desktop", Workflow);
+        Assert.Contains("Window rendered", Workflow);
         Assert.True(Workflow.IndexOf("name: Smoke test", StringComparison.Ordinal) < Workflow.IndexOf("name: Pack", StringComparison.Ordinal),
             "The smoke test must run before the release is packed.");
+    }
+
+    private static string WindowsPack()
+    {
+        var pack = Regex.Matches(WorkflowCommands, @"vpk pack\b[^\n]*").FirstOrDefault(m => m.Value.Contains("win-x64"));
+        Assert.True(pack is not null, "release.yml has no Windows vpk pack.");
+        return pack.Value;
     }
 
     private static string FindRepositoryRoot()

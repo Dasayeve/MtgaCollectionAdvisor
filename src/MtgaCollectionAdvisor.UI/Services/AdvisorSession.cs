@@ -10,14 +10,14 @@ using MtgaCollectionAdvisor.Core.Memory;
 using MtgaCollectionAdvisor.Core.Models;
 using MtgaCollectionAdvisor.Core.Storage;
 
-namespace MtgaCollectionAdvisor.Web.Services;
+namespace MtgaCollectionAdvisor.UI.Services;
 
 /// <summary>
 /// Holds everything the UI shows and owns the long-running operations (memory scan,
 /// deck fetch, card database import). Components subscribe to <see cref="Changed"/>
 /// and re-render; nothing in the UI ever blocks on a scan.
 /// </summary>
-public sealed partial class AdvisorSession(AppConfig config, ILogger<AdvisorSession> log) : IAsyncDisposable
+public sealed partial class AdvisorSession(AppConfig config, ILogger<AdvisorSession> log, ILoggerFactory loggers) : IAsyncDisposable
 {
     private readonly SemaphoreSlim _operationGate = new(1, 1);
     private System.Threading.Timer? _mtgaWatchTimer;
@@ -249,7 +249,7 @@ public sealed partial class AdvisorSession(AppConfig config, ILogger<AdvisorSess
         }
     }
 
-    /// <summary>Writes the user's data out for the download endpoints; null before the app has started.</summary>
+    /// <summary>Writes the user's data out for the Export menu; null before the app has started.</summary>
     public DataExportService? DataExport => services?.DataExportService;
 
     public bool IsPinned(string sourceId) => Pins.ContainsKey(sourceId);
@@ -726,6 +726,20 @@ public sealed partial class AdvisorSession(AppConfig config, ILogger<AdvisorSess
         catch (Exception ex)
         {
             log.LogWarning(ex, "Opening the log folder failed");
+        }
+    }
+
+    private int _windowRendered;
+
+    /// <summary>
+    /// Logs "Window rendered" once per run, in the startup log: the release smoke test waits for
+    /// it, as proof that the published app drew its window and not just started.
+    /// </summary>
+    public void WindowRendered()
+    {
+        if (Interlocked.Exchange(ref _windowRendered, 1) == 0)
+        {
+            loggers.CreateLogger(LogFiles.StartupCategory).LogInformation("Window rendered");
         }
     }
 

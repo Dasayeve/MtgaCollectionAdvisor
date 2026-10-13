@@ -14,7 +14,7 @@ permissions:
   contents: write
 
 env:
-  # Must equal the Velopack package version in MtgaCollectionAdvisor.Web.csproj
+  # Must equal the Velopack package version in MtgaCollectionAdvisor.UI.csproj
   # (ReleaseWorkflowTests): the installer and the in-app updater move together.
   VPK_VERSION: 1.2.158
   REPO_URL: https://github.com/${{ github.repository }}
@@ -41,44 +41,55 @@ jobs:
 
       - run: dotnet test MtgaCollectionAdvisor.slnx --configuration Release
 
-      # The same shape publish-local.ps1 builds, stamped with the release version, and with no
-      # console window (WindowsAppNoConsole; see the Web project file).
+      # The Windows app (#119): its own window, no local server. The same shape publish-local.ps1
+      # builds, stamped with the release version.
       - name: Publish
         shell: bash
         run: |
-          dotnet publish src/MtgaCollectionAdvisor.Web -c Release -r win-x64 --self-contained \
+          dotnet publish src/MtgaCollectionAdvisor.Desktop -c Release -r win-x64 --self-contained \
             -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true \
-            -p:DebugType=None -p:Version="$VERSION" -p:WindowsAppNoConsole=true -o publish-out
-          rm -f publish-out/appsettings.Development.json
+            -p:DebugType=None -p:Version="$VERSION" -o publish-out
 
-      # v0.1.1 shipped with blazor.web.js missing: every page loaded and no button worked, with
-      # no error anywhere (#54). Run what is about to ship and fail the release if it is broken.
+      # Run what is about to ship and fail the release if it is broken: v0.1.1 loaded every page
+      # with no button working and no error anywhere (#54). The window logs "Window rendered" once
+      # Blazor has drawn it, and closing the window must stop the app.
       - name: Smoke test
         shell: pwsh
         run: |
-          $exe = "publish-out\MtgaCollectionAdvisor.Web.exe"
+          $exe = "publish-out\MtgaDeckAdvisor.exe"
           $bytes = [IO.File]::ReadAllBytes($exe)
           $subsystem = [BitConverter]::ToUInt16($bytes, [BitConverter]::ToInt32($bytes, 0x3C) + 0x18 + 0x44)
           if ($subsystem -ne 2) { throw "The exe would open a console window (PE subsystem $subsystem, expected 2)." }
 
-          New-Item -ItemType Directory -Force "$env:RUNNER_TEMP\smoke" | Out-Null
-          $env:MTGA_ADVISOR_PORT = "5299"
-          $env:MTGA_ADVISOR_DB_PATH = "$env:RUNNER_TEMP\smoke\advisor.db"
-          $app = Start-Process $exe -ArgumentList "--no-browser" -PassThru
+          $smoke = "$env:RUNNER_TEMP\smoke"
+          New-Item -ItemType Directory -Force $smoke | Out-Null
+          $env:MTGA_ADVISOR_DB_PATH = "$smoke\advisor.db"
+          $app = Start-Process $exe -PassThru
           try {
-            $up = $false
-            for ($i = 0; $i -lt 60 -and -not $up; $i++) {
-              try { Invoke-WebRequest "http://localhost:5299/" -UseBasicParsing | Out-Null; $up = $true }
-              catch { Start-Sleep -Seconds 2 }
+            $log = $null
+            $rendered = $false
+            for ($i = 0; $i -lt 60 -and -not $rendered; $i++) {
+              Start-Sleep -Seconds 2
+              if ($app.HasExited) { throw "The published app exited on its own (code $($app.ExitCode))." }
+              $log = Get-ChildItem "$smoke\logs\advisor-*.log" -ErrorAction SilentlyContinue | Select-Object -First 1
+              $rendered = $null -ne $log -and (Select-String -Path $log.FullName -Pattern "Window rendered" -Quiet)
             }
-            if (-not $up) { throw "The published app did not answer on port 5299." }
-            foreach ($path in "/", "/_framework/blazor.web.js", "/app.css") {
-              $status = (Invoke-WebRequest "http://localhost:5299$path" -UseBasicParsing -SkipHttpErrorCheck).StatusCode
-              if ($status -ne 200) { throw "GET $path returned $status." }
-              "GET $path -> $status"
+            if (-not $rendered) {
+              if ($log) { Get-Content $log.FullName }
+              throw "The published app never drew its window."
             }
+            "Window rendered"
+
+            $app.Refresh()
+            $app.CloseMainWindow() | Out-Null
+            if (-not $app.WaitForExit(15000)) { throw "The app did not stop after its window closed." }
+            if (-not (Select-String -Path $log.FullName -Pattern "Stopping: window closed" -Quiet)) {
+              Get-Content $log.FullName
+              throw "The app stopped without logging why."
+            }
+            "Stopping: window closed"
           }
-          finally { Stop-Process -Id $app.Id -Force }
+          finally { if (-not $app.HasExited) { Stop-Process -Id $app.Id -Force } }
 
       # Global tools land in %USERPROFILE%\.dotnet\tools, which later steps' PATH lacks.
       - name: Install vpk
@@ -99,13 +110,14 @@ jobs:
           fi
 
       # packId is not the data folder's name (MtgaCollectionAdvisor): uninstalling deletes
-      # %LOCALAPPDATA%\<packId>, and the player's data must survive that.
+      # %LOCALAPPDATA%\<packId>, and the player's data must survive that. The installer adds
+      # WebView2 where it is missing (Windows 11 has it, some Windows 10 machines don't).
       - name: Pack
         shell: bash
         run: |
           vpk pack --packId MtgaDeckAdvisor --packVersion "$VERSION" --packDir publish-out \
-            --mainExe MtgaCollectionAdvisor.Web.exe --packTitle "MTGA Deck Advisor" \
-            --packAuthors "Dasayeve" --icon src/MtgaCollectionAdvisor.Web/app.ico --runtime win-x64 -o Releases
+            --mainExe MtgaDeckAdvisor.exe --framework webview2 --packTitle "MTGA Deck Advisor" \
+            --packAuthors "Dasayeve" --icon src/MtgaCollectionAdvisor.Desktop/app.ico --runtime win-x64 -o Releases
           cd Releases && sha256sum *Setup.exe *Portable.zip > SHA256SUMS.txt && cat SHA256SUMS.txt
 
       - name: Dry-run artifact
@@ -157,7 +169,8 @@ jobs:
             echo "VERSION=0.0.${GITHUB_RUN_NUMBER}-dryrun" >> "$GITHUB_ENV"  # vpk refuses versions below 0.0.1
           fi
 
-      - run: dotnet test MtgaCollectionAdvisor.slnx --configuration Release
+      # The solution holds the Windows app, which doesn't build here.
+      - run: dotnet test src/MtgaCollectionAdvisor.Core.Tests --configuration Release
 
       - name: Publish (macOS)
         shell: bash
@@ -181,7 +194,7 @@ jobs:
             sleep 2
           done
           if [ "$up" != true ]; then echo "The published app did not answer on port 5299."; exit 1; fi
-          for path in / /_framework/blazor.web.js /app.css; do
+          for path in / /_framework/blazor.web.js /_content/MtgaCollectionAdvisor.UI/app.css; do
             status=$(curl -s -o /dev/null -w '%{http_code}' "http://localhost:5299$path")
             echo "GET $path -> $status"
             if [ "$status" != 200 ]; then echo "GET $path returned $status."; exit 1; fi

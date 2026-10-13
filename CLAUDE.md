@@ -7,10 +7,13 @@ Constraints that aren't obvious from the code. Most of them fail silently.
 | Project | Contains |
 |---|---|
 | `MtgaCollectionAdvisor.Core` | All logic: memory scanner, Scryfall import, Archidekt client, wildcard analysis, SQLite storage |
-| `MtgaCollectionAdvisor.Web` | Blazor Server UI, the only front-end |
+| `MtgaCollectionAdvisor.UI` | The screens (Razor components), `AdvisorSession` and `app.css`, shared by both hosts |
+| `MtgaCollectionAdvisor.Desktop` | The Windows app and what releases ship: a WinForms window rendering `UI` in-process with WebView2 (#119) |
+| `MtgaCollectionAdvisor.Web` | The macOS host: `UI` served on localhost (Blazor Server) in a browser window, until the Mac gets its own window |
 | `MtgaCollectionAdvisor.Core.Tests` | xUnit tests |
 
-`Core` has no reference to `Web`. The UI holds no domain logic.
+`Core` references neither `UI` nor a host. The UI holds no domain logic, and no host checks: what differs
+between hosts comes through services (`IExportSaver`, `AppUpdater`'s restart arguments).
 
 ## MTG Arena data
 
@@ -148,18 +151,6 @@ tests (see `RELEASING.md`).
 
 ## Blazor
 
-**Interactive components need `@rendermode="InteractiveServer"`** on `<Routes />` and `<HeadOutlet />` in
-`App.razor`. Without it the page looks perfect and nothing is clickable, with no error anywhere. Check
-this first.
-
-**Never make the Web project `WinExe`**: Blazor's `blazor.web.js` is only added to `Exe` projects, so
-nothing is clickable, with no error (v0.1.1, #54). The release hides the console with
-`-p:WindowsAppNoConsole=true`. That flag is cached in `obj`: after a publish with it, delete
-`bin/Release` and `obj/Release`.
-
-**Verify with `dotnet run`, not the `.exe` in `bin/`**: that runs as Production, serves no `wwwroot`,
-and every page has no CSS.
-
 **Razor prints code as text, with no warning:**
 - A `string` parameter needs `@` to take a field: `QuoteStatus="@_quoteStatus"`, not
   `QuoteStatus="_quoteStatus"` (#62).
@@ -175,15 +166,59 @@ both themes. A new colour is a token with a dark value and a light value, the li
 **both** light blocks (Windows setting and player's pick); never a hex in a rule.
 
 **A popover inside a dialog is clipped** (#84): `.modal-panel` scrolls. Previews there are
-`position: fixed`, placed by the script in `App.razor`; a new one needs the same.
+`position: fixed`, placed by `UI/wwwroot/advisor.js`; a new one needs the same. That script is the page's
+own behaviour for both hosts (theme, What's new glow, previews), loaded in `<head>`.
 
 **Report progress synchronously when a final status follows**: `Progress<T>` posts later, so the last
 report can overwrite the summary. Use `AdvisorSession.ImmediateProgress`.
 
-**File downloads are plain `GET` endpoints with `<a download>`** (`/export/*` in `Program.cs`). No JS
-interop.
+**Exports go through `IExportSaver`**: a Save dialog in the desktop window (`DesktopExportSaver`), a
+download from `/export/*` in the browser host (`WebExportSaver`). The file is `DataExportService.ExportAsync`.
+
+## The desktop window (Windows)
+
+**`Main` is `[STAThread]` and synchronous**: WinForms and WebView2 need a single-threaded apartment, and
+an async `Main` has none.
+
+**BlazorWebView owns the WebView2 it sets up.** It serves the app from `https://0.0.0.1` (not `0.0.0.0`
+since .NET 9), answers every request under it (404 included), and applies its own settings right after
+`BlazorWebViewInitialized` (the Release build turns the default menu off). Anything of ours that must win
+goes in on the next UI tick (`BeginInvoke`), as `MainWindow.Configure` does.
+
+**The window size is in physical pixels**: `LogicalToDeviceUnits`, or a 150 % screen gets a 1000 px page.
+
+**What makes a web view feel like a browser is taken out:** the right-click menu shows edit items on
+text being edited or selected, and nothing elsewhere (`DesktopContextMenu`); the title bar follows the
+page's theme (`theme:light|dark` by `chrome.webview.postMessage` from `advisor.js`); links with
+`target="_blank"` open in the default browser. Dev tools only in Debug.
+
+**WebView2's data (the page's `localStorage`) sits next to the database**, in `WebView2`. Two copies
+whose databases share a folder share it, and WebView2 refuses a second process started with other
+options (`0x8007139F`, e.g. one with remote debugging): give each test database its own folder.
+
+**The WebView2 package always references its WPF control**: the Desktop project drops that reference
+(`DropWebView2Wpf`), or the build warns MSB3277 about `WindowsBase`.
+
+## The browser host (macOS)
+
+**Interactive components need `@rendermode="InteractiveServer"`** on `<Routes />` and `<HeadOutlet />` in
+`App.razor`, and the pages live in `UI`, so `MapRazorComponents` needs
+`AddAdditionalAssemblies(typeof(Routes).Assembly)`. Without either the page looks perfect and nothing is
+clickable, with no error anywhere. Check this first.
+
+**The Web project stays `Exe`**: Blazor's `blazor.web.js` is only added to `Exe` projects, so nothing is
+clickable, with no error (v0.1.1, #54).
+
+**Verify with `dotnet run`, not the `.exe` in `bin/`**: that runs as Production, serves no `wwwroot`,
+and every page has no CSS.
 
 ## App lifetime
+
+**On Windows the window is the app** (#119): closing it ends the process (`Stopping: window closed`), and
+minimising it, covering it with MTG Arena or sleeping the machine changes nothing. One app per database
+(`SingleInstance`): a second launch brings the window forward and exits.
+
+**The browser host has to guess whether its window is still there.** Everything below is macOS only.
 
 **Closing the window stops the app 45 s later; a lost connection doesn't** (#34, #99). Browsers freeze
 hidden pages (a window behind Arena in full screen counts), which drops the connection. So pages
@@ -200,10 +235,14 @@ far later than due and calls `WindowPresence.Slept`. Any new time limit must go 
 It counts *connections*, not circuits (`OnCircuitClosedAsync` means nothing here). Nothing stops before
 a first window connects. Every stop is logged with its reason.
 
-**`VelopackApp.Build().Run()` stays the first statement of `Program.cs`**: the installer runs the exe
-with hook arguments and expects it to exit at once. `vpk pack`'s "entry point" warning is expected.
-The published build pins its content root to the exe's folder, because the updater's restart sets no
-working directory.
+**`VelopackApp.Build().Run()` stays the first statement of each host's entry point**: the installer runs
+the exe with hook arguments and expects it to exit at once. `vpk pack`'s "entry point" warning is
+expected. The published browser host pins its content root to the exe's folder, because the updater's
+restart sets no working directory.
+
+**The Windows main exe is `MtgaDeckAdvisor.exe`** (the Desktop project's `AssemblyName`, `--mainExe`). The
+update from the browser-hosted `MtgaCollectionAdvisor.Web.exe` rewrote the installed shortcuts to it
+(checked on #119); renaming it again needs the same check. `ReleaseWorkflowTests` holds the two together.
 
 **The Velopack `packId` is `MtgaDeckAdvisor`, never `MtgaCollectionAdvisor`**: uninstall deletes
 `%LOCALAPPDATA%\<packId>`, which would be the player's data folder. `ReleaseWorkflowTests` holds it, and
@@ -224,14 +263,20 @@ with `TestDatabaseFiles.Delete`. **Never `SqliteConnection.ClearAllPools()`** (#
 parallel, and it breaks theirs at random (`ObjectDisposedException`). To check a fix, run several
 `dotnet test` in parallel, a few times.
 
-**Test the running app on another port, with a copy of the database:** `MTGA_ADVISOR_PORT=5299` and
-`MTGA_ADVISOR_DB_PATH`. On 5199 a test copy hijacks the player's desktop shortcut, and without the DB
-path it writes their data. An instance killed mid-shutdown can hold 5199 and lock `bin/`: check
-`tasklist` before blaming the build.
+**Test the desktop app with a copy of the database, in a folder of its own:** `MTGA_ADVISOR_DB_PATH`.
+It is one app per database, so the copy runs next to the player's; without the variable a launch brings
+the player's window forward, or opens their data. A new database runs the first-run setup, which
+fetches decks from Archidekt: reuse a copy rather than starting fresh ones.
 
-**A browser-automation tab is hidden, and the browser freezes it** after about a minute idle
-("renderer frozen"). That isn't an app bug. Keep driving it, or check server-side (`curl`, the
-database).
+**Drive the desktop window through the DevTools protocol**: start it with
+`WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=9222`; browser-automation tools can't reach
+it. Native dialogs (Save, message boxes) are not in the page: reach them with UI Automation, **never with
+simulated keystrokes**, which go to whatever window has the focus (MTG Arena, once).
+
+**Test the browser host on another port, with a copy of the database:** `MTGA_ADVISOR_PORT=5299` and
+`MTGA_ADVISOR_DB_PATH`. An instance killed mid-shutdown can hold the port and lock `bin/`: check
+`tasklist` before blaming the build. A browser-automation tab is hidden, and the browser freezes it after
+about a minute idle ("renderer frozen"): that isn't an app bug.
 
 **The first-run setup resumes through `advisor.db.setup`** next to the database. Delete it to drop an
 unfinished setup; use a new `MTGA_ADVISOR_DB_PATH` to see the setup again.
