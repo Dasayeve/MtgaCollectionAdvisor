@@ -110,6 +110,14 @@ public sealed class NonBasicLandTests
         Gap("Sheoldred, the Apocalypse", 2, 0, CardRarity.Mythic));
 
     [Fact]
+    public void WithoutNonBasicLands_Should_KeepTheShapeVerdict()
+    {
+        // A pricing view, not a new deck (#125): a wrong-shape deck stays one.
+        Assert.False((Sample with { FitsFormatShape = false }).WithoutNonBasicLands().FitsFormatShape);
+        Assert.True(Sample.WithoutNonBasicLands().FitsFormatShape);
+    }
+
+    [Fact]
     public void WithoutNonBasicLands_Should_RemoveThoseLinesFromGapsAndDeck()
     {
         var without = Sample.WithoutNonBasicLands();

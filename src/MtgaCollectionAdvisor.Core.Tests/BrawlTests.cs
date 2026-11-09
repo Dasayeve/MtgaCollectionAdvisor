@@ -39,6 +39,35 @@ public sealed class BrawlTests
     }
 
     [Fact]
+    public void Accepts_Should_RejectWrongShape_ForAKnownFormat()
+    {
+        // #125: Archidekt lets anyone file any list under any format.
+        var commander = ("Tinybones, Bauble Burglar", 1, DeckBoard.Commander);
+        var standardBrawl = Deck(commander, ("Swamp", 59, DeckBoard.Main));
+        var oneTooMany = Deck(commander, ("Swamp", 60, DeckBoard.Main));
+        var sixtyNoCommander = Deck(("Swamp", 60, DeckBoard.Main));
+        var hundredNoCommander = Deck(("Swamp", 100, DeckBoard.Main));
+
+        Assert.True(ArchidektClient.Accepts(standardBrawl, Formats.StandardBrawl, formatKnown: true));
+        Assert.False(ArchidektClient.Accepts(oneTooMany, Formats.StandardBrawl, formatKnown: true));
+        Assert.False(ArchidektClient.Accepts(sixtyNoCommander, Formats.StandardBrawl, formatKnown: true));
+        Assert.False(ArchidektClient.Accepts(hundredNoCommander, Formats.Brawl, formatKnown: true));
+        Assert.False(ArchidektClient.Accepts(standardBrawl, Formats.Standard, formatKnown: true));
+        Assert.True(ArchidektClient.Accepts(sixtyNoCommander, Formats.Standard, formatKnown: true));
+    }
+
+    [Fact]
+    public void Accepts_Should_NeedOnlyTheMinimumSize_ForACreatorLink()
+    {
+        // A creator video's link is read without knowing its format; pricing picks it later.
+        var brawl = Deck(("Tinybones, Bauble Burglar", 1, DeckBoard.Commander), ("Swamp", 99, DeckBoard.Main));
+        var draft = Deck(("Swamp", 40, DeckBoard.Main));
+
+        Assert.True(ArchidektClient.Accepts(brawl, Formats.Standard, formatKnown: false));
+        Assert.False(ArchidektClient.Accepts(draft, Formats.Standard, formatKnown: false));
+    }
+
+    [Fact]
     public void PickBest_Should_TellTheTwoBrawlsApartBySize()
     {
         var sixty = Deck(("Tinybones, Bauble Burglar", 1, DeckBoard.Commander), ("Swamp", 59, DeckBoard.Main));

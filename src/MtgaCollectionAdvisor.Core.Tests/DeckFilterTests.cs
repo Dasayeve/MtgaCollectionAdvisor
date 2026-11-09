@@ -164,6 +164,28 @@ public class DeckFilterTests
     }
 
     [Fact]
+    public void Apply_Should_DropWrongShapeDecks_FromSuggestions()
+    {
+        // #125: a 100-card list filed as Standard Brawl, all legal.
+        var fits = Deck("Fits", "B", ["Swamp"]);
+        var wrongShape = Deck("Hundred Cards", "B", ["Swamp"]) with { FitsFormatShape = false };
+
+        var result = DeckFilter.Apply([fits, wrongShape], new DeckFilterCriteria(), EmptyWallet);
+
+        Assert.Equal(["Fits"], result.Select(d => d.Deck.Name));
+    }
+
+    [Fact]
+    public void Apply_Should_KeepWrongShapeDecks_WhenUnplayableIncluded()
+    {
+        var wrongShape = Deck("My 61 Cards", "B", ["Swamp"], userDeck: true) with { FitsFormatShape = false };
+
+        var result = DeckFilter.Apply([wrongShape], new DeckFilterCriteria { IncludeUnplayable = true }, EmptyWallet);
+
+        Assert.Single(result);
+    }
+
+    [Fact]
     public void Apply_Should_KeepUnplayableDecks_When_IncludeUnplayableIsSet()
     {
         var unavailable = Deck("Not On Arena", "R", ["Mountain"], unavailableOnArena: ["Mosswood Dreadknight"]);

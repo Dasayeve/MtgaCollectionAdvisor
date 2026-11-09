@@ -80,7 +80,7 @@ public sealed class ArchidektClient(HttpClient httpClient)
     {
         try
         {
-            return await ReadDeckDetailAsync(listing.Id, listing.Name, listing.ViewCount, format, fetchedAt, ct);
+            return await ReadDeckDetailAsync(listing.Id, listing.Name, listing.ViewCount, format, formatKnown: true, fetchedAt, ct);
         }
         catch (Exception ex) when (ex is HttpRequestException or JsonException or TaskCanceledException)
         {
@@ -96,7 +96,7 @@ public sealed class ArchidektClient(HttpClient httpClient)
     {
         try
         {
-            return await ReadDeckDetailAsync(id, "", 0, format, DateTimeOffset.UtcNow, ct);
+            return await ReadDeckDetailAsync(id, "", 0, format, formatKnown: false, DateTimeOffset.UtcNow, ct);
         }
         catch (Exception ex) when (ex is HttpRequestException or JsonException or TaskCanceledException)
         {
@@ -105,7 +105,7 @@ public sealed class ArchidektClient(HttpClient httpClient)
     }
 
     private async Task<CandidateDeck?> ReadDeckDetailAsync(
-        int id, string listedName, int viewCount, FormatDefinition format, DateTimeOffset fetchedAt, CancellationToken ct)
+        int id, string listedName, int viewCount, FormatDefinition format, bool formatKnown, DateTimeOffset fetchedAt, CancellationToken ct)
     {
         var detail = await httpClient.GetFromJsonAsync<ArchidektDeckDetail>(
             $"api/decks/{id}/", JsonOptions, ct);
@@ -134,15 +134,7 @@ public sealed class ArchidektClient(HttpClient httpClient)
             cards.Add(new DeckCardRef(name, entry.Quantity, board));
         }
 
-        // Anyone can save a 5-card scratch deck as "Standard"; a real deck has at least the
-        // format's size (60, or 100 for Brawl with its commander). A half-built one would rank
-        // as cheap.
-        if (cards.Where(c => c.Board != DeckBoard.Sideboard).Sum(c => c.Quantity) < format.MinimumDeckSize)
-        {
-            return null;
-        }
-
-        return new CandidateDeck(
+        var deck = new CandidateDeck(
             SourceId: $"{SourcePrefix}{id}",
             Name: string.IsNullOrWhiteSpace(detail.Name) ? listedName : detail.Name,
             Url: $"https://archidekt.com/decks/{id}",
@@ -150,7 +142,19 @@ public sealed class ArchidektClient(HttpClient httpClient)
             Popularity: viewCount,
             Cards: cards,
             FetchedAt: fetchedAt);
+        return Accepts(deck, format, formatKnown) ? deck : null;
     }
+
+    /// <summary>
+    /// Anyone can save a 5-card scratch deck as "Standard", or a 100-card list as Standard Brawl
+    /// (#125). A list read for a format must have its shape: a half-built one would rank as cheap,
+    /// and a list of another size isn't a deck of that format. A creator video's link is read
+    /// without knowing its format, so it needs only the minimum size; pricing picks its format.
+    /// </summary>
+    internal static bool Accepts(CandidateDeck deck, FormatDefinition format, bool formatKnown) =>
+        formatKnown
+            ? format.FitsShapeOf(deck)
+            : deck.Cards.Where(c => c.Board != DeckBoard.Sideboard).Sum(c => c.Quantity) >= format.MinimumDeckSize;
 }
 
 /// <summary>A deck as Archidekt's search lists it, before its cards are read.</summary>
