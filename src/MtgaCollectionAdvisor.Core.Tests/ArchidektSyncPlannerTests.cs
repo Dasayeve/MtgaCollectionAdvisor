@@ -1,4 +1,5 @@
 using MtgaCollectionAdvisor.Core.Decks;
+using MtgaCollectionAdvisor.Core.Models;
 using Xunit;
 
 namespace MtgaCollectionAdvisor.Core.Tests;
@@ -113,6 +114,116 @@ public class ArchidektSyncPlannerTests
         Assert.Equal(
             "Archidekt: 4 new, 1 updated, 0 removed. 30 decks in the pool. Stopped early, kept what was read: Could not read deck 7 from Archidekt.",
             report.Describe());
+    }
+
+    // ---------- One click, every format (#124) ----------
+
+    private static DeckSyncReport Fetched(int added = 0, int pool = 10, bool capped = false) =>
+        new(added, 0, 0, pool, 0, capped, StoppedBecause: null, CooldownRemaining: null);
+
+    private static DeckSyncReport OnCooldown(int minutes) =>
+        new(0, 0, 0, 0, 0, false, null, CooldownRemaining: TimeSpan.FromMinutes(minutes));
+
+    private static DeckSyncReport Failed(string reason) =>
+        new(1, 0, 0, 5, 1, false, StoppedBecause: reason, CooldownRemaining: null);
+
+    private static (FormatDefinition, DateTimeOffset?)[] NeverFetched() =>
+        [.. Formats.All.Select(f => (f, (DateTimeOffset?)null))];
+
+    private static async Task<(MultiFormatSyncReport Report, List<string> Called)> Run(
+        IReadOnlyList<(FormatDefinition, DateTimeOffset?)> formats, Func<FormatDefinition, DeckSyncReport> result)
+    {
+        var called = new List<string>();
+        var report = await ArchidektSyncPlanner.SyncFormatsAsync(formats, format =>
+        {
+            called.Add(format.Key);
+            return Task.FromResult(result(format));
+        });
+        return (report, called);
+    }
+
+    [Fact]
+    public void FormatOrder_Should_PutNeverFetchedFirst_ThenOldest()
+    {
+        var order = ArchidektSyncPlanner.FormatOrder(
+        [
+            (Formats.Standard, Now.AddMinutes(-10)),
+            (Formats.Pioneer, Now.AddDays(-3)),
+            (Formats.Brawl, null),
+            (Formats.StandardBrawl, Now.AddDays(-40)),
+        ]);
+
+        Assert.Equal([Formats.Brawl, Formats.StandardBrawl, Formats.Pioneer, Formats.Standard], order);
+    }
+
+    [Fact]
+    public void FormatOrder_Should_KeepTheGivenOrder_ForTies()
+    {
+        Assert.Equal(Formats.All, ArchidektSyncPlanner.FormatOrder(NeverFetched()));
+        Assert.Equal([Formats.Pioneer, Formats.Standard],
+            ArchidektSyncPlanner.FormatOrder([(Formats.Pioneer, Now), (Formats.Standard, Now)]));
+    }
+
+    [Fact]
+    public async Task SyncFormats_Should_RunEveryFormat_InOrder()
+    {
+        var (report, called) = await Run(NeverFetched(), _ => Fetched());
+
+        Assert.Equal(Formats.All.Select(f => f.Key), called);
+        Assert.Empty(report.NotReached);
+        Assert.Null(report.Stopped);
+    }
+
+    [Fact]
+    public async Task SyncFormats_Should_SkipCooldown_AndGoOn()
+    {
+        var (report, called) = await Run(NeverFetched(), f => f == Formats.Pioneer ? OnCooldown(3) : Fetched());
+
+        Assert.Equal(4, called.Count);
+        Assert.Empty(report.NotReached);
+    }
+
+    [Fact]
+    public async Task SyncFormats_Should_StopAtTheFirstFailure()
+    {
+        var (report, called) = await Run(NeverFetched(), f => f == Formats.Pioneer ? Failed("HTTP 429") : Fetched());
+
+        Assert.Equal([Formats.Standard.Key, Formats.Pioneer.Key], called);
+        Assert.Equal([Formats.Brawl, Formats.StandardBrawl], report.NotReached);
+        Assert.Equal(Formats.Pioneer, report.Stopped?.Format);
+    }
+
+    [Fact]
+    public async Task SyncFormats_Should_GoOn_AfterACappedFormat()
+    {
+        var (report, called) = await Run(NeverFetched(), f => f == Formats.Standard ? Fetched(capped: true) : Fetched());
+
+        Assert.Equal(4, called.Count);
+        Assert.Null(report.Stopped);
+    }
+
+    [Fact]
+    public async Task Describe_Should_SumChanges_AndNameSkippedAndNotReached()
+    {
+        var (report, _) = await Run(NeverFetched(), f =>
+            f == Formats.Standard ? Fetched(added: 3, pool: 869, capped: true) :
+            f == Formats.Pioneer ? OnCooldown(2) :
+            f == Formats.Brawl ? Failed("Archidekt answered 429 (too many requests).") :
+            Fetched());
+
+        Assert.Equal(
+            "Archidekt: 4 new, 0 updated, 0 removed. Pool: Standard 869, Brawl 5. Checked moments ago: Pioneer. "
+            + "More remain for Standard - fetch again to continue. "
+            + "Stopped early at Brawl, kept what was read: Archidekt answered 429 (too many requests). Not reached: Standard Brawl.",
+            report.Describe());
+    }
+
+    [Fact]
+    public async Task Describe_Should_SayTryAgain_WhenEveryFormatIsOnCooldown()
+    {
+        var (report, _) = await Run(NeverFetched(), f => OnCooldown(f == Formats.Brawl ? 1 : 4));
+
+        Assert.Equal("Archidekt was checked moments ago - try again in 1 min.", report.Describe());
     }
 
     private static ArchidektListing Listing(int id, int views = 500, int daysAgo = 2) =>

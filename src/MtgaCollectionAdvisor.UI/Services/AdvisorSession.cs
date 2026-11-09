@@ -111,7 +111,8 @@ public sealed partial class AdvisorSession(AppConfig config, ILogger<AdvisorSess
 
     public Task ScanCollectionAsync() => RunAsync("Capturing collection", report => CaptureAsync(report));
 
-    public Task FetchDecksAsync() => RunAsync($"Fetching {Format.DisplayName} decks", report => FetchDecksAsync(Format, report));
+    /// <summary>Fetch decks: every format, not only the one shown (#124).</summary>
+    public Task FetchDecksAsync() => RunAsync("Fetching decks", FetchAllDecksAsync);
 
     public Task RefreshCardDatabaseAsync() => RunAsync("Updating card database", ImportCardsAsync);
 
@@ -178,6 +179,20 @@ public sealed partial class AdvisorSession(AppConfig config, ILogger<AdvisorSess
         return true;
     }
 
+    private async Task FetchAllDecksAsync(StatusReport report)
+    {
+        var result = await services.ArchidektDeckSync.SyncAllAsync(Formats.All, new ImmediateProgress(message => report(message)));
+        if (result.Stopped is { } stopped)
+        {
+            log.LogWarning("Archidekt fetch for {Format} stopped early: {Reason} ({Cause}); not reached: {NotReached}",
+                stopped.Format.DisplayName, stopped.Report.StoppedBecause, stopped.Report.StopCause ?? "unknown cause",
+                result.NotReached.Count == 0 ? "none" : string.Join(", ", result.NotReached.Select(f => f.DisplayName)));
+        }
+        await ReloadRankingAsync();
+        report(result.Describe());
+    }
+
+    /// <summary>One format: the first-run setup's Standard fetch.</summary>
     private async Task<DeckSyncReport> FetchDecksAsync(FormatDefinition format, StatusReport report)
     {
         var result = await services.ArchidektDeckSync.SyncAsync(format, new ImmediateProgress(message => report(message)));

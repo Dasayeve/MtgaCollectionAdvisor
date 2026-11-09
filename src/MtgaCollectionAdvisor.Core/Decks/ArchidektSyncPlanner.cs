@@ -1,3 +1,5 @@
+using MtgaCollectionAdvisor.Core.Models;
+
 namespace MtgaCollectionAdvisor.Core.Decks;
 
 public enum ListingDecision
@@ -83,5 +85,40 @@ public static class ArchidektSyncPlanner
         if (lastSyncAt is not { } last) return null;
         var remaining = Cooldown - (now - last);
         return remaining > TimeSpan.Zero ? remaining : null;
+    }
+
+    /// <summary>
+    /// The order one click walks the formats in (#124): never fetched first, then the least
+    /// recently fetched; ties in the order given. A failed read ends the run, so a fixed order
+    /// would keep filling the same format and starve the rest; this way repeated clicks reach
+    /// every format in turn.
+    /// </summary>
+    public static IReadOnlyList<FormatDefinition> FormatOrder(
+        IReadOnlyList<(FormatDefinition Format, DateTimeOffset? LastSyncAt)> formats) =>
+        [.. formats
+            .Select((f, index) => (f.Format, f.LastSyncAt, index))
+            .OrderBy(f => f.LastSyncAt is null ? 0 : 1)
+            .ThenBy(f => f.LastSyncAt ?? DateTimeOffset.MinValue)
+            .ThenBy(f => f.index)
+            .Select(f => f.Format)];
+
+    /// <summary>
+    /// Fetches each format in <see cref="FormatOrder"/>. A format on cooldown is only skipped,
+    /// and a capped one is that format's ceiling, but a failed read (a 429 included) ends the run:
+    /// going on to the next format would be a retry loop under another name.
+    /// </summary>
+    public static async Task<MultiFormatSyncReport> SyncFormatsAsync(
+        IReadOnlyList<(FormatDefinition Format, DateTimeOffset? LastSyncAt)> formats,
+        Func<FormatDefinition, Task<DeckSyncReport>> sync)
+    {
+        var order = FormatOrder(formats);
+        var ran = new List<FormatSyncReport>();
+        foreach (var format in order)
+        {
+            var report = await sync(format);
+            ran.Add(new FormatSyncReport(format, report));
+            if (report.StoppedBecause is not null) break;
+        }
+        return new MultiFormatSyncReport(ran, [.. order.Skip(ran.Count)]);
     }
 }

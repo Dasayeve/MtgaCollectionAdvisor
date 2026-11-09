@@ -49,6 +49,58 @@ public sealed record DeckSyncReport(
     }
 }
 
+/// <summary>What one fetch did for one format, within a run over all of them (#124).</summary>
+public sealed record FormatSyncReport(FormatDefinition Format, DeckSyncReport Report);
+
+/// <summary>
+/// What one click on Fetch decks did across the formats (#124): those it ran, in order (skipped
+/// for their cooldown included), and those a failed read kept it from reaching.
+/// </summary>
+public sealed record MultiFormatSyncReport(
+    IReadOnlyList<FormatSyncReport> Ran,
+    IReadOnlyList<FormatDefinition> NotReached)
+{
+    /// <summary>The format whose read failed and ended the run; null when none did.</summary>
+    public FormatSyncReport? Stopped => Ran.LastOrDefault(r => r.Report.StoppedBecause is not null);
+
+    /// <summary>The line the status bar shows once the run is over.</summary>
+    public string Describe()
+    {
+        var fetched = Ran.Where(r => r.Report.CooldownRemaining is null).ToList();
+        var waiting = Ran.Where(r => r.Report.CooldownRemaining is not null).ToList();
+
+        if (fetched.Count == 0)
+        {
+            var wait = waiting.Select(r => r.Report.CooldownRemaining!.Value).DefaultIfEmpty(TimeSpan.Zero).Min();
+            var minutes = Math.Max(1, (int)Math.Ceiling(wait.TotalMinutes));
+            return $"Archidekt was checked moments ago - try again in {minutes} min.";
+        }
+
+        int added = fetched.Sum(r => r.Report.Added), updated = fetched.Sum(r => r.Report.Updated),
+            removed = fetched.Sum(r => r.Report.Removed);
+        var parts = new List<string>
+        {
+            added + updated + removed == 0
+                ? "No new decks on Archidekt since the last fetch."
+                : $"Archidekt: {added} new, {updated} updated, {removed} removed.",
+            $"Pool: {string.Join(", ", fetched.Select(r => $"{r.Format.DisplayName} {r.Report.PoolSize}"))}.",
+        };
+        if (waiting.Count > 0) parts.Add($"Checked moments ago: {Names(waiting.Select(r => r.Format))}.");
+
+        var capped = fetched.Where(r => r.Report.CutShort).Select(r => r.Format).ToList();
+        if (capped.Count > 0) parts.Add($"More remain for {Names(capped)} - fetch again to continue.");
+
+        if (Stopped is { } stopped)
+        {
+            var stop = $"Stopped early at {stopped.Format.DisplayName}, kept what was read: {stopped.Report.StoppedBecause}";
+            parts.Add(NotReached.Count > 0 ? $"{stop.TrimEnd('.')}. Not reached: {Names(NotReached)}." : stop);
+        }
+        return string.Join(" ", parts);
+
+        static string Names(IEnumerable<FormatDefinition> formats) => string.Join(", ", formats.Select(f => f.DisplayName));
+    }
+}
+
 /// <summary>
 /// Brings the stored Archidekt decks of a format up to date: walks the search newest first,
 /// reads only the decks that are new or changed (<see cref="ArchidektSyncPlanner"/>), merges
@@ -61,6 +113,21 @@ public sealed record DeckSyncReport(
 /// </summary>
 public sealed class ArchidektDeckSync(ArchidektClient client, CuratedDeckStore decks, PinnedDeckStore pins)
 {
+    /// <summary>
+    /// One click on Fetch decks (#124): every format, least recently fetched first, each with its
+    /// own cooldown and caps, until the first failed read.
+    /// </summary>
+    public async Task<MultiFormatSyncReport> SyncAllAsync(
+        IReadOnlyList<FormatDefinition> formats, IProgress<string> progress, CancellationToken ct = default)
+    {
+        var states = new List<(FormatDefinition, DateTimeOffset?)>();
+        foreach (var format in formats)
+        {
+            states.Add((format, (await decks.LoadSyncStateAsync(format, ct)).LastSyncAt));
+        }
+        return await ArchidektSyncPlanner.SyncFormatsAsync(states, format => SyncAsync(format, progress, ct));
+    }
+
     public async Task<DeckSyncReport> SyncAsync(
         FormatDefinition format, IProgress<string> progress, CancellationToken ct = default)
     {
