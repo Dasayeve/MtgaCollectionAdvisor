@@ -126,7 +126,7 @@
                             @if (deck.UnrecognisedCopies > 0)
                             {
                                 <div class="deck-warning" title="@AdvisorSession.UnrecognisedHint">
-                                    @deck.UnavailableOnArena.Count card@(deck.UnavailableOnArena.Count == 1 ? "" : "s") not recognised
+                                    @Plural.Of(deck.UnavailableOnArena.Count, "card") not recognised
                                 </div>
                             }
                             <div class="video-format">

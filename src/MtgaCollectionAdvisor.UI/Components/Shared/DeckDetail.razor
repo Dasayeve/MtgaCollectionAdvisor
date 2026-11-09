@@ -81,7 +81,7 @@
     {
         @* The whole deck, whatever the lands checkbox says: that one is about pricing, and a
            hand from a deck without its mana base tells nothing. *@
-        <DeckTestDraw Gaps="Deck.Gaps" />
+        <DeckTestDraw DeckId="@Deck.Deck.SourceId" Gaps="Deck.Gaps" LandsExcluded="_excludeLands" />
     }
     else
     {
@@ -184,10 +184,10 @@
         if (cost.Uncommons > 0) parts.Add($"{cost.Uncommons} uncommon");
         if (cost.Commons > 0) parts.Add($"{cost.Commons} common");
 
-        var lands = $"{copies} non-basic land{(copies == 1 ? "" : "s")} left out";
+        var lands = $"{Plural.Of(copies, "non-basic land")} left out";
         return parts.Count == 0
             ? $"{lands}: you already own them."
-            : $"{lands}: {string.Join(", ", parts)} wildcard{(cost.Total == 1 ? "" : "s")}.";
+            : $"{lands}: {string.Join(", ", parts)} {Plural.Noun(cost.Total, "wildcard")}.";
     }
 
     private RenderFragment RenderCardRow(CardGap gap) => @<div class="card-row @CardRowClass(gap)">

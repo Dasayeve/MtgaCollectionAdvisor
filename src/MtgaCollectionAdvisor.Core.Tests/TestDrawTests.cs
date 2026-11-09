@@ -52,10 +52,15 @@ public sealed class TestDrawTests
         Assert.DoesNotContain(library, g => g.Board != DeckBoard.Main);
     }
 
+    // Copies that compare unequal, so a hand holding one copy twice shows: records of the same
+    // card compare equal, and Library repeats one record per copy.
+    private static IReadOnlyList<CardGap> DistinctCopies(int size, int lands) =>
+        [.. Enumerable.Range(0, size).Select(i => i < lands ? Basic($"Land {i}", 1) : Spell($"Spell {i}", 1))];
+
     [Fact]
     public void Deal_gives_seven_cards_from_the_library()
     {
-        var library = SixtyCards();
+        var library = DistinctCopies(60, 24);
 
         var hand = TestDraw.Deal(library, new Random(1));
 
@@ -64,16 +69,26 @@ public sealed class TestDrawTests
     }
 
     [Fact]
-    public void Deal_never_gives_more_copies_than_the_deck_has()
+    public void Deal_never_deals_the_same_copy_twice()
     {
-        var library = TestDraw.Library([Spell("Single", 1), Spell("Pair", 2), Basic("Island", 7)]);
+        var library = DistinctCopies(10, 4);
         var random = new Random(2);
 
         for (var i = 0; i < 1000; i++)
         {
             var hand = TestDraw.Deal(library, random);
-            Assert.All(hand.GroupBy(g => g.CardName), group => Assert.True(group.Count() <= group.First().Needed));
+            Assert.Equal(hand.Count, hand.Distinct().Count());
         }
+    }
+
+    [Fact]
+    public void Deal_of_the_whole_library_gives_every_copy_once()
+    {
+        var library = DistinctCopies(7, 3);
+
+        var hand = TestDraw.Deal(library, new Random(3));
+
+        Assert.Equal(library.OrderBy(g => g.CardName), hand.OrderBy(g => g.CardName));
     }
 
     [Fact]
@@ -159,6 +174,39 @@ public sealed class TestDrawTests
         Assert.Equal(0, odds.HandSize);
         Assert.Equal([1.0], odds.ExactlyLands);
         Assert.Equal(0, odds.AverageLands);
+    }
+
+    [Fact]
+    public void Odds_are_reliable_with_at_most_one_card_in_ten_not_recognised()
+    {
+        var sixUnknown = TestDraw.Library([Spell("Spell", 30), Basic("Island", 24), Unrecognised("Islnad", 6)]);
+        var sevenUnknown = TestDraw.Library([Spell("Spell", 29), Basic("Island", 24), Unrecognised("Islnad", 7)]);
+
+        Assert.True(TestDraw.Odds(sixUnknown).IsReliable);
+        Assert.Equal(6, TestDraw.Odds(sixUnknown).Unrecognised);
+        Assert.False(TestDraw.Odds(sevenUnknown).IsReliable);
+        Assert.False(TestDraw.Odds([]).IsReliable);
+    }
+
+    [Fact]
+    public void A_new_list_with_the_same_cards_is_the_same_library()
+    {
+        IReadOnlyList<CardGap> before = [Spell("Opt", 4), Basic("Island", 20)];
+        // A re-rank after a craft: ownership changed, the cards didn't.
+        IReadOnlyList<CardGap> after = [Spell("Opt", 4) with { Owned = 4 }, Basic("Island", 20)];
+
+        Assert.True(TestDraw.SameLibrary(before, after));
+        Assert.True(TestDraw.SameLibrary(before, [.. after, Spell("Sideboard card", 2, DeckBoard.Sideboard)]));
+        Assert.False(TestDraw.SameLibrary(before, [Spell("Opt", 3), Basic("Island", 20)]));
+        Assert.False(TestDraw.SameLibrary(before, [Spell("Opt", 4) with { IsNonBasicLand = true }, Basic("Island", 20)]));
+    }
+
+    [Fact]
+    public void Plural_counts_in_english()
+    {
+        Assert.Equal("1 land", Plural.Of(1, "land"));
+        Assert.Equal("0 lands", Plural.Of(0, "land"));
+        Assert.Equal("cards", Plural.Noun(2, "card"));
     }
 
     [Fact]

@@ -58,7 +58,7 @@
                             @if (choice.UnknownCards > 0)
                             {
                                 <span class="arena-deck-warning">
-                                    @choice.UnknownCards card@(choice.UnknownCards == 1 ? "" : "s") not in the card database - run Update cards first
+                                    @Plural.Of(choice.UnknownCards, "card") not in the card database - run Update cards first
                                 </span>
                             }
                         </label>

@@ -14,9 +14,13 @@
     {
         <div class="test-draw-hand">
             <div class="test-draw-header">
-                <span class="card-list-title">Opening hand · @Plural(HandLands, "land")</span>
+                <span class="card-list-title">Opening hand · @Plural.Of(_handLands, "land")</span>
                 <button @onclick="Deal">New hand</button>
             </div>
+            @if (LandsExcluded)
+            {
+                <div class="test-draw-context">Drawn from the whole deck: leaving out non-basic lands only changes the price and the export.</div>
+            }
             <div class="test-draw-cards">
                 @foreach (var card in DeckListOrder.Order(_hand))
                 {
@@ -35,56 +39,73 @@
 
         <div class="test-draw-odds">
             <div class="card-list-title">Lands in an opening hand</div>
-            <div class="test-draw-context">@Plural(_odds.Lands, "land") in @Plural(_odds.LibrarySize, "card")</div>
-            <table>
-                <tbody>
-                    @for (var k = 0; k <= _odds.HandSize; k++)
-                    {
-                        var current = k == HandLands;
-                        <tr class="@(current ? "current" : null)" aria-current="@(current ? "true" : null)">
-                            <th scope="row">@Plural(k, "land")</th>
-                            <td>@_odds.ExactlyLands[k].ToString("P1")</td>
-                        </tr>
-                    }
-                </tbody>
-            </table>
-            @if (_odds.HandSize == TestDraw.OpeningHandSize)
+            @if (!_odds.IsReliable)
             {
-                <div class="test-draw-summary">2 to 4 lands: <strong>@_odds.TwoToFourLands.ToString("P1")</strong></div>
+                @* #87: with this much of the list unknown, any odds would be a claim about cards the
+                   app can't read. *@
+                <div class="test-draw-context" title="@AdvisorSession.UnrecognisedHint">
+                    Can't tell: @Plural.Of(_odds.Unrecognised, "card") of @_odds.LibrarySize not recognised.
+                </div>
             }
-            <div class="test-draw-summary">Average: <strong>@_odds.AverageLands.ToString("0.0") lands</strong></div>
-            @if (_unrecognised > 0)
+            else
             {
-                <div class="test-draw-context">@Plural(_unrecognised, "card") not recognised, counted as non-lands.</div>
+                <div class="test-draw-context">@Plural.Of(_odds.Lands, "land") in @Plural.Of(_odds.LibrarySize, "card")</div>
+                <table>
+                    <tbody>
+                        @for (var k = 0; k <= _odds.HandSize; k++)
+                        {
+                            var current = k == _handLands;
+                            <tr class="@(current ? "current" : null)" aria-current="@(current ? "true" : null)">
+                                <th scope="row">@Plural.Of(k, "land")</th>
+                                <td>@_odds.ExactlyLands[k].ToString("P1")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+                @if (_odds.HandSize == TestDraw.OpeningHandSize)
+                {
+                    <div class="test-draw-summary">2 to 4 lands: <strong>@_odds.TwoToFourLands.ToString("P1")</strong></div>
+                }
+                <div class="test-draw-summary">Average: <strong>@_odds.AverageLands.ToString("0.0") lands</strong></div>
+                @if (_odds.Unrecognised > 0)
+                {
+                    <div class="test-draw-context" title="@AdvisorSession.UnrecognisedHint">@Plural.Of(_odds.Unrecognised, "card") not recognised, counted as non-lands.</div>
+                }
             }
         </div>
     }
 </div>
 
 @code {
+    /// <summary>The deck's id: another deck deals a new hand.</summary>
+    [Parameter, EditorRequired] public string DeckId { get; set; } = "";
     [Parameter, EditorRequired] public IReadOnlyList<CardGap> Gaps { get; set; } = [];
 
-    private IReadOnlyList<CardGap>? _gaps;
+    /// <summary>"Exclude non-basic lands" is ticked: the hand still comes from the whole deck.</summary>
+    [Parameter] public bool LandsExcluded { get; set; }
+
+    private string? _deckId;
+    private IReadOnlyList<CardGap> _gaps = [];
     private IReadOnlyList<CardGap> _library = [];
     private IReadOnlyList<CardGap> _hand = [];
+    private int _handLands;
     private OpeningHandOdds _odds = TestDraw.Odds([]);
-    private int _unrecognised;
 
-    private int HandLands => _hand.Count(g => g.IsLand);
-
-    // The panel re-renders for its own reasons (Copy for Arena, the lands checkbox): only another
-    // list deals again.
+    // Every re-rank (a craft, a wildcard update, a scan) hands over a new list for the same deck:
+    // the hand stays unless the deck, or the cards it holds, changed.
     protected override void OnParametersSet()
     {
-        if (ReferenceEquals(_gaps, Gaps)) return;
+        if (_deckId == DeckId && TestDraw.SameLibrary(_gaps, Gaps)) return;
+        _deckId = DeckId;
         _gaps = Gaps;
         _library = TestDraw.Library(Gaps);
         _odds = TestDraw.Odds(_library);
-        _unrecognised = _library.Count(g => !g.AvailableOnArena);
         Deal();
     }
 
-    private void Deal() => _hand = TestDraw.Deal(_library, Random.Shared);
-
-    private static string Plural(int count, string noun) => $"{count} {noun}{(count == 1 ? "" : "s")}";
+    private void Deal()
+    {
+        _hand = TestDraw.Deal(_library, Random.Shared);
+        _handLands = _hand.Count(g => g.IsLand);
+    }
 }

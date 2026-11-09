@@ -8,8 +8,15 @@ public sealed record OpeningHandOdds(
     int LibrarySize,
     int Lands,
     int HandSize,
-    IReadOnlyList<double> ExactlyLands)
+    IReadOnlyList<double> ExactlyLands,
+    int Unrecognised = 0)
 {
+    /// <summary>
+    /// At most one card in ten not recognised. Each one counts as a non-land, so past that the odds
+    /// say more about the list's spelling than about the deck, and nothing may be claimed (#87).
+    /// </summary>
+    public bool IsReliable => LibrarySize > 0 && Unrecognised * 10 <= LibrarySize;
+
     /// <summary>A hand most players keep by land count: 2 to 4 lands.</summary>
     public double TwoToFourLands => Enumerable.Range(2, 3).Where(k => k <= HandSize).Sum(k => ExactlyLands[k]);
 
@@ -55,10 +62,19 @@ public static class TestDraw
         var exactly = Enumerable.Range(0, hand + 1)
             .Select(k => Choose(lands, k) * Choose(size - lands, hand - k) / hands)
             .ToList();
-        return new OpeningHandOdds(size, lands, hand, exactly);
+        return new OpeningHandOdds(size, lands, hand, exactly, library.Count(g => !g.AvailableOnArena));
     }
 
-    // In double, multiplicatively: C(250, 7) is about 6e12, far inside its exact range.
+    /// <summary>
+    /// Whether two lists deal the same hands: the same cards, lands the same. Ownership doesn't count,
+    /// so a re-rank after a craft or a wildcard update (a new list for the same deck) keeps the hand.
+    /// </summary>
+    public static bool SameLibrary(IEnumerable<CardGap> a, IEnumerable<CardGap> b) =>
+        Library(a).Select(Key).SequenceEqual(Library(b).Select(Key));
+
+    private static (string, bool) Key(CardGap gap) => (gap.CardName, gap.IsLand);
+
+    // In double, multiplicatively: C(250, 7) is about 1.1e13, far inside its exact range (2^53, about 9e15).
     private static double Choose(int n, int k)
     {
         if (k < 0 || k > n) return 0;

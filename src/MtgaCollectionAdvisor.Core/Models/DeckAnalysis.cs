@@ -72,13 +72,11 @@ public sealed record WildcardNeed(int Commons, int Uncommons, int Rares, int Myt
     public string? DescribeShortfall()
     {
         var parts = new List<string>();
-        if (Mythics > 0) parts.Add(Plural(Mythics, "mythic"));
-        if (Rares > 0) parts.Add(Plural(Rares, "rare"));
-        if (Uncommons > 0) parts.Add(Plural(Uncommons, "uncommon"));
-        if (Commons > 0) parts.Add(Plural(Commons, "common"));
+        if (Mythics > 0) parts.Add(Plural.Of(Mythics, "mythic"));
+        if (Rares > 0) parts.Add(Plural.Of(Rares, "rare"));
+        if (Uncommons > 0) parts.Add(Plural.Of(Uncommons, "uncommon"));
+        if (Commons > 0) parts.Add(Plural.Of(Commons, "common"));
         return parts.Count == 0 ? null : $"{string.Join(", ", parts)} short";
-
-        static string Plural(int count, string rarity) => $"{count} {rarity}{(count == 1 ? "" : "s")}";
     }
 }
 

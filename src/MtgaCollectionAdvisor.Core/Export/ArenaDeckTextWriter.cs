@@ -1,6 +1,7 @@
 using System.Text;
 using MtgaCollectionAdvisor.Core.Arena;
 using MtgaCollectionAdvisor.Core.Decks;
+using MtgaCollectionAdvisor.Core.Models;
 
 namespace MtgaCollectionAdvisor.Core.Export;
 
@@ -40,7 +41,7 @@ public static class ArenaDeckTextWriter
         // Arena's importer and ArenaDeckListParser both skip a line they cannot read, so
         // the note costs nothing on re-import and tells the user why a card is missing.
         var header = unknown > 0
-            ? $"// {unknown} card{(unknown == 1 ? "" : "s")} not in the card database - run Update cards and export again{Environment.NewLine}"
+            ? $"// {Plural.Of(unknown, "card")} not in the card database - run Update cards and export again{Environment.NewLine}"
             : "";
 
         return header + string.Join(Environment.NewLine, sections);

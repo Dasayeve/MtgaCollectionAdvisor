@@ -55,10 +55,10 @@ public static class DeckListOrder
         { } value => ((int)value).ToString(System.Globalization.CultureInfo.InvariantCulture),
     };
 
-    // By the front face (#61): a spell with a land on its back is a spell.
+    // A land as CardGap.IsLand decides it (#61, #126): a spell with a land on its back is a spell.
     private static int Group(CardGap gap) =>
         !gap.AvailableOnArena ? 3 :
+        !gap.IsLand ? 0 :
         gap.Rarity == CardRarity.Basic ? 2 :
-        gap.IsNonBasicLand ? 1 :
-        0;
+        1;
 }
