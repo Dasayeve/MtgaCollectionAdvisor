@@ -1,0 +1,117 @@
+@using MtgaCollectionAdvisor.Core.Analysis
+@using MtgaCollectionAdvisor.Core.Models
+
+@* A sample opening hand (#126): the main board shuffled, 7 dealt, a new hand at a click. Beside it,
+   the exact odds of each land count, worked out from the list, not from the hands dealt. The cards
+   are whole images with nothing drawn on them: only the visual deck view may do that (#111). *@
+
+<div class="test-draw">
+    @if (_library.Count == 0)
+    {
+        <div class="result-count">No cards to draw: this deck has no main board.</div>
+    }
+    else
+    {
+        <div class="test-draw-hand">
+            <div class="test-draw-header">
+                <span class="card-list-title">Opening hand · @Plural.Of(_handLands, "land")</span>
+                <button class="test-draw-redeal" title="New hand: shuffle the whole deck and deal 7 again"
+                        aria-label="New hand" @onclick="Deal">
+                    <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">
+                        <path d="M13.2 8.6A5.3 5.3 0 1 1 11.6 4.1M13.4 1.8v2.9h-2.9"
+                              fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" />
+                    </svg>
+                </button>
+            </div>
+            @if (LandsExcluded)
+            {
+                <div class="test-draw-context">Drawn from the whole deck: leaving out non-basic lands only changes the price and the export.</div>
+            }
+            <div class="test-draw-cards">
+                @foreach (var card in DeckListOrder.Order(_hand))
+                {
+                    @if (card.ImageUrl is { } front)
+                    {
+                        <img class="test-draw-card" src="@front" alt="@card.CardName" width="146" />
+                    }
+                    else
+                    {
+                        <span class="test-draw-card visual-placeholder"
+                              title="@(card.AvailableOnArena ? null : AdvisorSession.UnrecognisedHint)">@card.CardName</span>
+                    }
+                }
+            </div>
+        </div>
+
+        <div class="test-draw-odds">
+            <div class="card-list-title">Lands in an opening hand</div>
+            @if (!_odds.IsReliable)
+            {
+                @* #87: with this much of the list unknown, any odds would be a claim about cards the
+                   app can't read. *@
+                <div class="test-draw-context" title="@AdvisorSession.UnrecognisedHint">
+                    Can't tell: @Plural.Of(_odds.Unrecognised, "card") of @_odds.LibrarySize not recognised.
+                </div>
+            }
+            else
+            {
+                <div class="test-draw-context">@Plural.Of(_odds.Lands, "land") in @Plural.Of(_odds.LibrarySize, "card")</div>
+                <table>
+                    <tbody>
+                        @for (var k = 0; k <= _odds.HandSize; k++)
+                        {
+                            var current = k == _handLands;
+                            <tr class="@(current ? "current" : null)" aria-current="@(current ? "true" : null)">
+                                <th scope="row">@Plural.Of(k, "land")</th>
+                                <td>@_odds.ExactlyLands[k].ToString("P1")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+                @if (_odds.HandSize == TestDraw.OpeningHandSize)
+                {
+                    <div class="test-draw-summary">2 to 4 lands: <strong>@_odds.TwoToFourLands.ToString("P1")</strong></div>
+                }
+                <div class="test-draw-summary">Average: <strong>@_odds.AverageLands.ToString("0.0") lands</strong></div>
+                @if (_odds.Unrecognised > 0)
+                {
+                    <div class="test-draw-context" title="@AdvisorSession.UnrecognisedHint">@Plural.Of(_odds.Unrecognised, "card") not recognised, counted as non-lands.</div>
+                }
+            }
+        </div>
+    }
+</div>
+
+@code {
+    /// <summary>The deck's id: another deck deals a new hand.</summary>
+    [Parameter, EditorRequired] public string DeckId { get; set; } = "";
+    [Parameter, EditorRequired] public IReadOnlyList<CardGap> Gaps { get; set; } = [];
+
+    /// <summary>"Exclude non-basic lands" is ticked: the hand still comes from the whole deck.</summary>
+    [Parameter] public bool LandsExcluded { get; set; }
+
+    private string? _deckId;
+    private IReadOnlyList<CardGap> _gaps = [];
+    private IReadOnlyList<CardGap> _library = [];
+    private IReadOnlyList<CardGap> _hand = [];
+    private int _handLands;
+    private OpeningHandOdds _odds = TestDraw.Odds([]);
+
+    // Every re-rank (a craft, a wildcard update, a scan) hands over a new list for the same deck:
+    // the hand stays unless the deck, or the cards it holds, changed.
+    protected override void OnParametersSet()
+    {
+        if (_deckId == DeckId && TestDraw.SameLibrary(_gaps, Gaps)) return;
+        _deckId = DeckId;
+        _gaps = Gaps;
+        _library = TestDraw.Library(Gaps);
+        _odds = TestDraw.Odds(_library);
+        Deal();
+    }
+
+    private void Deal()
+    {
+        _hand = TestDraw.Deal(_library, Random.Shared);
+        _handLands = _hand.Count(g => g.IsLand);
+    }
+}

@@ -20,6 +20,9 @@ public sealed record CardGap(
 {
     public int Missing => Math.Max(0, Needed - Owned);
     public bool AvailableOnArena => GrpId is not null;
+
+    /// <summary>A land by its front face (#61): a basic or a non-basic land, recognised. A spell with a land on its back is a spell.</summary>
+    public bool IsLand => AvailableOnArena && (Rarity == CardRarity.Basic || IsNonBasicLand);
 }
 
 public sealed record WildcardNeed(int Commons, int Uncommons, int Rares, int Mythics)
@@ -69,13 +72,11 @@ public sealed record WildcardNeed(int Commons, int Uncommons, int Rares, int Myt
     public string? DescribeShortfall()
     {
         var parts = new List<string>();
-        if (Mythics > 0) parts.Add(Plural(Mythics, "mythic"));
-        if (Rares > 0) parts.Add(Plural(Rares, "rare"));
-        if (Uncommons > 0) parts.Add(Plural(Uncommons, "uncommon"));
-        if (Commons > 0) parts.Add(Plural(Commons, "common"));
+        if (Mythics > 0) parts.Add(Plural.Of(Mythics, "mythic"));
+        if (Rares > 0) parts.Add(Plural.Of(Rares, "rare"));
+        if (Uncommons > 0) parts.Add(Plural.Of(Uncommons, "uncommon"));
+        if (Commons > 0) parts.Add(Plural.Of(Commons, "common"));
         return parts.Count == 0 ? null : $"{string.Join(", ", parts)} short";
-
-        static string Plural(int count, string rarity) => $"{count} {rarity}{(count == 1 ? "" : "s")}";
     }
 }
 
