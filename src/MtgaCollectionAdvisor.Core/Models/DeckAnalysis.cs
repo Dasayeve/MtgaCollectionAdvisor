@@ -20,6 +20,9 @@ public sealed record CardGap(
 {
     public int Missing => Math.Max(0, Needed - Owned);
     public bool AvailableOnArena => GrpId is not null;
+
+    /// <summary>A land by its front face (#61): a basic or a non-basic land, recognised. A spell with a land on its back is a spell.</summary>
+    public bool IsLand => AvailableOnArena && (Rarity == CardRarity.Basic || IsNonBasicLand);
 }
 
 public sealed record WildcardNeed(int Commons, int Uncommons, int Rares, int Mythics)

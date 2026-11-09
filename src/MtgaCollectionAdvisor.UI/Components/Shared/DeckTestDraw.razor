@@ -1,0 +1,90 @@
+@using MtgaCollectionAdvisor.Core.Analysis
+@using MtgaCollectionAdvisor.Core.Models
+
+@* A sample opening hand (#126): the main board shuffled, 7 dealt, a new hand at a click. Beside it,
+   the exact odds of each land count, worked out from the list, not from the hands dealt. The cards
+   are whole images with nothing drawn on them: only the visual deck view may do that (#111). *@
+
+<div class="test-draw">
+    @if (_library.Count == 0)
+    {
+        <div class="result-count">No cards to draw: this deck has no main board.</div>
+    }
+    else
+    {
+        <div class="test-draw-hand">
+            <div class="test-draw-header">
+                <span class="card-list-title">Opening hand · @Plural(HandLands, "land")</span>
+                <button @onclick="Deal">New hand</button>
+            </div>
+            <div class="test-draw-cards">
+                @foreach (var card in DeckListOrder.Order(_hand))
+                {
+                    @if (card.ImageUrl is { } front)
+                    {
+                        <img class="test-draw-card" src="@front" alt="@card.CardName" width="146" />
+                    }
+                    else
+                    {
+                        <span class="test-draw-card visual-placeholder"
+                              title="@(card.AvailableOnArena ? null : AdvisorSession.UnrecognisedHint)">@card.CardName</span>
+                    }
+                }
+            </div>
+        </div>
+
+        <div class="test-draw-odds">
+            <div class="card-list-title">Lands in an opening hand</div>
+            <div class="test-draw-context">@Plural(_odds.Lands, "land") in @Plural(_odds.LibrarySize, "card")</div>
+            <table>
+                <tbody>
+                    @for (var k = 0; k <= _odds.HandSize; k++)
+                    {
+                        var current = k == HandLands;
+                        <tr class="@(current ? "current" : null)" aria-current="@(current ? "true" : null)">
+                            <th scope="row">@Plural(k, "land")</th>
+                            <td>@_odds.ExactlyLands[k].ToString("P1")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+            @if (_odds.HandSize == TestDraw.OpeningHandSize)
+            {
+                <div class="test-draw-summary">2 to 4 lands: <strong>@_odds.TwoToFourLands.ToString("P1")</strong></div>
+            }
+            <div class="test-draw-summary">Average: <strong>@_odds.AverageLands.ToString("0.0") lands</strong></div>
+            @if (_unrecognised > 0)
+            {
+                <div class="test-draw-context">@Plural(_unrecognised, "card") not recognised, counted as non-lands.</div>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public IReadOnlyList<CardGap> Gaps { get; set; } = [];
+
+    private IReadOnlyList<CardGap>? _gaps;
+    private IReadOnlyList<CardGap> _library = [];
+    private IReadOnlyList<CardGap> _hand = [];
+    private OpeningHandOdds _odds = TestDraw.Odds([]);
+    private int _unrecognised;
+
+    private int HandLands => _hand.Count(g => g.IsLand);
+
+    // The panel re-renders for its own reasons (Copy for Arena, the lands checkbox): only another
+    // list deals again.
+    protected override void OnParametersSet()
+    {
+        if (ReferenceEquals(_gaps, Gaps)) return;
+        _gaps = Gaps;
+        _library = TestDraw.Library(Gaps);
+        _odds = TestDraw.Odds(_library);
+        _unrecognised = _library.Count(g => !g.AvailableOnArena);
+        Deal();
+    }
+
+    private void Deal() => _hand = TestDraw.Deal(_library, Random.Shared);
+
+    private static string Plural(int count, string noun) => $"{count} {noun}{(count == 1 ? "" : "s")}";
+}

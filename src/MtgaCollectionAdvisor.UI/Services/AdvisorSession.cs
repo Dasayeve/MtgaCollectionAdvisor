@@ -768,5 +768,8 @@ public sealed partial class AdvisorSession(AppConfig config, ILogger<AdvisorSess
     }
 }
 
-/// <summary>The deck panel's two views (#111): the card list, or the cards' images by mana value.</summary>
-public enum DeckView { List, Visual }
+/// <summary>
+/// The deck panel's views: the card list, the cards' images by mana value (#111), or a sample
+/// opening hand (#126).
+/// </summary>
+public enum DeckView { List, Visual, TestDraw }

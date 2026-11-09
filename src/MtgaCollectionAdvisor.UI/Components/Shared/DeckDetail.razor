@@ -20,6 +20,10 @@
             <button class="@(Session.DeckView == DeckView.Visual ? "active" : null)"
                     aria-pressed="@(Session.DeckView == DeckView.Visual)"
                     @onclick="() => Session.DeckView = DeckView.Visual">Visual</button>
+            @* #126: a sample opening hand and the odds of lands in one. *@
+            <button class="@(Session.DeckView == DeckView.TestDraw ? "active" : null)"
+                    aria-pressed="@(Session.DeckView == DeckView.TestDraw)"
+                    @onclick="() => Session.DeckView = DeckView.TestDraw">Test draw</button>
         </div>
         @if (Deck.HasNonBasicLands)
         {
@@ -72,6 +76,12 @@
     @if (Session.DeckView == DeckView.Visual)
     {
         <DeckVisual Gaps="Shown.Gaps" />
+    }
+    else if (Session.DeckView == DeckView.TestDraw)
+    {
+        @* The whole deck, whatever the lands checkbox says: that one is about pricing, and a
+           hand from a deck without its mana base tells nothing. *@
+        <DeckTestDraw Gaps="Deck.Gaps" />
     }
     else
     {
