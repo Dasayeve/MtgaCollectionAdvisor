@@ -176,6 +176,18 @@ public class DeckFilterTests
     }
 
     [Fact]
+    public void Apply_Should_KeepAPinnedWrongShapeDeck_InSuggestions()
+    {
+        // Hidden, its pin couldn't be seen or removed anywhere.
+        var pinned = Deck("Pinned 100", "B", ["Swamp"]) with { FitsFormatShape = false };
+
+        var result = DeckFilter.Apply([pinned],
+            new DeckFilterCriteria { PinnedSourceIds = new HashSet<string> { pinned.Deck.SourceId } }, EmptyWallet);
+
+        Assert.Single(result);
+    }
+
+    [Fact]
     public void Apply_Should_KeepWrongShapeDecks_WhenUnplayableIncluded()
     {
         var wrongShape = Deck("My 61 Cards", "B", ["Swamp"], userDeck: true) with { FitsFormatShape = false };
@@ -621,6 +633,7 @@ public class DeckFilterTests
             Gaps: [],
             UnavailableOnArena: unavailableOnArena ?? [],
             IllegalInFormat: illegalInFormat ?? [],
-            Colors: colors);
+            Colors: colors,
+            FitsFormatShape: true);
     }
 }

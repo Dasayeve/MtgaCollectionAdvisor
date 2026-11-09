@@ -132,7 +132,10 @@ public static class DeckFilter
         // wrong for a deck the user asked for, so it is a switch rather than a rule.
         if (!criteria.IncludeUnplayable)
         {
-            query = query.Where(d => d.LegalInFormat && d.FullyPlayableOnArena && d.FitsFormatShape);
+            // A pinned deck stays whatever its shape: the player is tracking it, and hiding it would
+            // leave the pin with no way to see or remove it (#125).
+            query = query.Where(d => d.LegalInFormat && d.FullyPlayableOnArena
+                && (d.FitsFormatShape || criteria.PinnedSourceIds.Contains(d.Deck.SourceId)));
         }
 
         if (criteria.Colors.Count > 0)

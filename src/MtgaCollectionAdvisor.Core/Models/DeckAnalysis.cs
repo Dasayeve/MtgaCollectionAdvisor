@@ -82,7 +82,8 @@ public sealed record WildcardNeed(int Commons, int Uncommons, int Rares, int Myt
 
 /// <param name="FitsFormatShape">
 /// <see cref="FormatDefinition.FitsShapeOf"/> for the format analysed (#125): deck sites file a
-/// 100-card list as Standard Brawl as readily as an illegal one as Standard.
+/// 100-card list as Standard Brawl as readily as an illegal one as Standard. Required, so a new
+/// place that builds an analysis has to decide it rather than let wrong-shape decks through.
 /// </param>
 public sealed record DeckAnalysisResult(
     CandidateDeck Deck,
@@ -93,7 +94,7 @@ public sealed record DeckAnalysisResult(
     IReadOnlyList<string> UnavailableOnArena,
     IReadOnlyList<string> IllegalInFormat,
     string Colors,
-    bool FitsFormatShape = true)
+    bool FitsFormatShape)
 {
     public double OwnedFraction => TotalCopies == 0 ? 0 : (double)OwnedCopies / TotalCopies;
     public bool FullyPlayableOnArena => UnavailableOnArena.Count == 0;

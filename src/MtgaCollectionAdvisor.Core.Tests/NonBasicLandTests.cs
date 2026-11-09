@@ -99,7 +99,7 @@ public sealed class NonBasicLandTests
 
         return new DeckAnalysisResult(deck, needed,
             gaps.Sum(g => Math.Min(g.Owned, g.Needed)), gaps.Sum(g => g.Needed),
-            gaps, ["Stomping Ground"], [], "RG");
+            gaps, ["Stomping Ground"], [], "RG", FitsFormatShape: true);
     }
 
     private static readonly DeckAnalysisResult Sample = Analysis(
