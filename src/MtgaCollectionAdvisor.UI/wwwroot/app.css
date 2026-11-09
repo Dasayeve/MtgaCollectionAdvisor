@@ -853,6 +853,8 @@ input[type="checkbox"], input[type="range"] { accent-color: var(--text); }
 .test-draw-hand { flex: 1 1 480px; min-width: 0; }
 .test-draw-header { display: flex; align-items: center; gap: var(--space-3); margin-bottom: var(--space-2); }
 .test-draw-header .card-list-title { margin: 0; }
+.test-draw-redeal { width: 30px; height: 30px; padding: 0; justify-content: center; color: var(--text-muted); }
+.test-draw-redeal:hover:not(:disabled) { color: var(--text); }
 .test-draw-cards { display: flex; flex-wrap: wrap; gap: var(--space-2); }
 .test-draw-card {
     display: block;

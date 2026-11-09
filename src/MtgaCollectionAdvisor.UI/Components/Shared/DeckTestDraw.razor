@@ -15,7 +15,13 @@
         <div class="test-draw-hand">
             <div class="test-draw-header">
                 <span class="card-list-title">Opening hand · @Plural.Of(_handLands, "land")</span>
-                <button @onclick="Deal">New hand</button>
+                <button class="test-draw-redeal" title="New hand: shuffle the whole deck and deal 7 again"
+                        aria-label="New hand" @onclick="Deal">
+                    <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">
+                        <path d="M13.2 8.6A5.3 5.3 0 1 1 11.6 4.1M13.4 1.8v2.9h-2.9"
+                              fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" />
+                    </svg>
+                </button>
             </div>
             @if (LandsExcluded)
             {
