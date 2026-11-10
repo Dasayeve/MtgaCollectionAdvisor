@@ -158,7 +158,9 @@ public sealed class ArchidektDeckSync(ArchidektClient client, CuratedDeckStore d
         await decks.SaveSyncStateAsync(format, state with { LastSyncAt = now }, ct);
 
         var cutoff = ArchidektSyncPlanner.CutoffFor(now);
-        var known = await decks.LoadSourceVersionsAsync(format, ct);
+        var stored = (await decks.LoadAsync(format, ct))
+            .Where(d => d.SourceId.StartsWith(ArchidektClient.SourcePrefix, StringComparison.Ordinal));
+        var known = ArchidektSyncPlanner.VersionsToKeep(await decks.LoadSourceVersionsAsync(format, ct), stored, format);
         var pinned = (await pins.LoadAsync(ct)).Keys.ToHashSet(StringComparer.Ordinal);
         var mayStopEarly = ArchidektSyncPlanner.MayStopEarly(state.FullWalkAt, now);
 

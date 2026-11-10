@@ -99,7 +99,7 @@ public sealed class NonBasicLandTests
 
         return new DeckAnalysisResult(deck, needed,
             gaps.Sum(g => Math.Min(g.Owned, g.Needed)), gaps.Sum(g => g.Needed),
-            gaps, ["Stomping Ground"], [], "RG");
+            gaps, ["Stomping Ground"], [], "RG", FitsFormatShape: true);
     }
 
     private static readonly DeckAnalysisResult Sample = Analysis(
@@ -108,6 +108,14 @@ public sealed class NonBasicLandTests
         Gap("Mountain", 8, 8, CardRarity.Basic),
         Gap("Lightning Strike", 4, 1, CardRarity.Common),
         Gap("Sheoldred, the Apocalypse", 2, 0, CardRarity.Mythic));
+
+    [Fact]
+    public void WithoutNonBasicLands_Should_KeepTheShapeVerdict()
+    {
+        // A pricing view, not a new deck (#125): a wrong-shape deck stays one.
+        Assert.False((Sample with { FitsFormatShape = false }).WithoutNonBasicLands().FitsFormatShape);
+        Assert.True(Sample.WithoutNonBasicLands().FitsFormatShape);
+    }
 
     [Fact]
     public void WithoutNonBasicLands_Should_RemoveThoseLinesFromGapsAndDeck()

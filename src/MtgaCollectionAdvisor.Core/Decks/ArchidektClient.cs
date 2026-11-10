@@ -74,8 +74,8 @@ public sealed class ArchidektClient(HttpClient httpClient)
     }
 
     /// <summary>
-    /// A listed deck in detail. Null when it is not a real constructed deck (under 60
-    /// mainboard cards); throws <see cref="ArchidektUnavailableException"/> when Archidekt
+    /// A listed deck in detail. Null when it doesn't have the format's shape (<see cref="Accepts"/>);
+    /// throws <see cref="ArchidektUnavailableException"/> when Archidekt
     /// did not answer, so the caller can stop asking rather than carry on regardless.
     /// </summary>
     public async Task<CandidateDeck?> ReadDeckAsync(
@@ -83,7 +83,7 @@ public sealed class ArchidektClient(HttpClient httpClient)
     {
         try
         {
-            return await ReadDeckDetailAsync(listing.Id, listing.Name, listing.ViewCount, format, fetchedAt, ct);
+            return await ReadDeckDetailAsync(listing.Id, listing.Name, listing.ViewCount, format, formatKnown: true, fetchedAt, ct);
         }
         catch (Exception ex) when (ex is HttpRequestException or JsonException or TaskCanceledException)
         {
@@ -92,14 +92,16 @@ public sealed class ArchidektClient(HttpClient httpClient)
     }
 
     /// <summary>
-    /// One deck by id, e.g. linked from a creator video. Null when it cannot be read or is
-    /// not a real constructed deck (under 60 cards), the same rules as a fetched deck.
+    /// One deck by id, e.g. linked from a creator video. Null when it cannot be read or is under the
+    /// format's minimum size. Unlike a fetched deck, its shape isn't checked: the link says nothing of
+    /// its format, so pricing picks one (<see cref="Creators.CreatorVideoPricing.PickBest"/>). Never use
+    /// this to read decks for a known format (#125).
     /// </summary>
     public async Task<CandidateDeck?> TryFetchDeckAsync(int id, FormatDefinition format, CancellationToken ct = default)
     {
         try
         {
-            return await ReadDeckDetailAsync(id, "", 0, format, DateTimeOffset.UtcNow, ct);
+            return await ReadDeckDetailAsync(id, "", 0, format, formatKnown: false, DateTimeOffset.UtcNow, ct);
         }
         catch (Exception ex) when (ex is HttpRequestException or JsonException or TaskCanceledException)
         {
@@ -108,11 +110,36 @@ public sealed class ArchidektClient(HttpClient httpClient)
     }
 
     private async Task<CandidateDeck?> ReadDeckDetailAsync(
-        int id, string listedName, int viewCount, FormatDefinition format, DateTimeOffset fetchedAt, CancellationToken ct)
+        int id, string listedName, int viewCount, FormatDefinition format, bool formatKnown, DateTimeOffset fetchedAt, CancellationToken ct)
     {
         var detail = await httpClient.GetFromJsonAsync<ArchidektDeckDetail>(
             $"api/decks/{id}/", JsonOptions, ct);
         if (detail is null) return null;
+
+        var deck = new CandidateDeck(
+            SourceId: $"{SourcePrefix}{id}",
+            Name: string.IsNullOrWhiteSpace(detail.Name) ? listedName : detail.Name,
+            Url: $"https://archidekt.com/decks/{id}",
+            FormatKey: format.Key,
+            Popularity: viewCount,
+            Cards: ReadCards(detail),
+            FetchedAt: fetchedAt);
+        return Accepts(deck, format, formatKnown) ? deck : null;
+    }
+
+    /// <summary>
+    /// The cards that are in the deck. A deck's own categories say whether they count
+    /// (<c>includedInDeck</c>): Maybeboard doesn't, and neither does a player's "Maybe Draw" or
+    /// "Considering", which counted until the exact Brawl sizes made a 60-card deck read as 63
+    /// (#125). A card goes by its first category, as Archidekt files it.
+    /// </summary>
+    internal static IReadOnlyList<DeckCardRef> ReadCards(ArchidektDeckDetail detail)
+    {
+        var excluded = (detail.Categories ?? [])
+            .Where(c => c.IncludedInDeck == false)
+            .Select(c => c.Name)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        excluded.Add("Maybeboard"); // excluded whether or not the deck lists its categories
 
         var cards = new List<DeckCardRef>();
         foreach (var entry in detail.Cards ?? [])
@@ -124,8 +151,8 @@ public sealed class ArchidektClient(HttpClient httpClient)
             // System.Text.Json writes over the property initializer.
             var categories = entry.Categories ?? [];
 
-            if (categories.Any(c => c.Equals("Maybeboard", StringComparison.OrdinalIgnoreCase)))
-                continue;
+            if (categories.Count > 0 && excluded.Contains(categories[0])) continue;
+            if (categories.Any(c => c.Equals("Maybeboard", StringComparison.OrdinalIgnoreCase))) continue;
 
             // A creator video's link is read without knowing its format, so the category decides.
             var board = categories.Any(c => c.Equals("Commander", StringComparison.OrdinalIgnoreCase))
@@ -136,24 +163,19 @@ public sealed class ArchidektClient(HttpClient httpClient)
 
             cards.Add(new DeckCardRef(name, entry.Quantity, board));
         }
-
-        // Anyone can save a 5-card scratch deck as "Standard"; a real deck has at least the
-        // format's size (60, or 100 for Brawl with its commander). A half-built one would rank
-        // as cheap.
-        if (cards.Where(c => c.Board != DeckBoard.Sideboard).Sum(c => c.Quantity) < format.MinimumDeckSize)
-        {
-            return null;
-        }
-
-        return new CandidateDeck(
-            SourceId: $"{SourcePrefix}{id}",
-            Name: string.IsNullOrWhiteSpace(detail.Name) ? listedName : detail.Name,
-            Url: $"https://archidekt.com/decks/{id}",
-            FormatKey: format.Key,
-            Popularity: viewCount,
-            Cards: cards,
-            FetchedAt: fetchedAt);
+        return cards;
     }
+
+    /// <summary>
+    /// Anyone can save a 5-card scratch deck as "Standard", or a 100-card list as Standard Brawl
+    /// (#125). A list read for a format must have its shape: a half-built one would rank as cheap,
+    /// and a list of another size isn't a deck of that format. A creator video's link is read
+    /// without knowing its format, so it needs only the minimum size; pricing picks its format.
+    /// </summary>
+    internal static bool Accepts(CandidateDeck deck, FormatDefinition format, bool formatKnown) =>
+        formatKnown
+            ? format.FitsShapeOf(deck)
+            : deck.MainSize >= format.MinimumDeckSize;
 }
 
 /// <summary>A deck as Archidekt's search lists it, before its cards are read.</summary>

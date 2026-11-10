@@ -83,6 +83,6 @@ public sealed class LigaMagicListTests
     {
         var deck = new CandidateDeck("manual:test", "Test", "", "standard", 0,
             [.. gaps.Select(g => new DeckCardRef(g.CardName, g.Needed, g.Board))], DateTimeOffset.UtcNow);
-        return new DeckAnalysisResult(deck, WildcardNeed.Zero, 0, gaps.Sum(g => g.Needed), gaps, [], [], "");
+        return new DeckAnalysisResult(deck, WildcardNeed.Zero, 0, gaps.Sum(g => g.Needed), gaps, [], [], "", FitsFormatShape: true);
     }
 }

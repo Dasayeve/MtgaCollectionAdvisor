@@ -36,4 +36,7 @@ public sealed record CandidateDeck(
     /// never filtered out of the UI: the user asked for them by name.
     /// </summary>
     public bool IsUserDeck => SourceId.StartsWith(ManualSourcePrefix, StringComparison.Ordinal);
+
+    /// <summary>The deck's size as formats count it: every card but the sideboard, the commander included.</summary>
+    public int MainSize => Cards.Where(c => c.Board != DeckBoard.Sideboard).Sum(c => c.Quantity);
 }

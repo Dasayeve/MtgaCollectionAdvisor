@@ -252,6 +252,22 @@ public class ArchidektSyncPlannerTests
             report.Describe());
     }
 
+    [Fact]
+    public void VersionsToKeep_Should_DropStoredDecksOfTheWrongShape_SoTheyAreReadAgain()
+    {
+        // #125: stored before the shape check, e.g. counted with a "Maybe Draw" category.
+        static CandidateDeck Stored(string id, int main) => new($"archidekt:{id}", id, "", Formats.StandardBrawl.Key, 0,
+            [new DeckCardRef("Commander", 1, DeckBoard.Commander), new DeckCardRef("Island", main, DeckBoard.Main)],
+            DateTimeOffset.UnixEpoch);
+        var known = new Dictionary<string, DateTimeOffset> { ["archidekt:fits"] = Now, ["archidekt:63"] = Now, ["archidekt:gone"] = Now };
+
+        var kept = ArchidektSyncPlanner.VersionsToKeep(known, [Stored("fits", 59), Stored("63", 62)], Formats.StandardBrawl);
+
+        Assert.Equal(["archidekt:fits", "archidekt:gone"], kept.Keys.Order());
+        Assert.Equal(ListingDecision.Fetch, ArchidektSyncPlanner.Decide(Listing(63), kept, NoPins, Cutoff));
+        Assert.Equal(ListingDecision.Unchanged, ArchidektSyncPlanner.Decide(Listing(63), known, NoPins, Cutoff));
+    }
+
     private static ArchidektListing Listing(int id, int views = 500, int daysAgo = 2) =>
         new(id, $"Deck {id}", views, Now.AddDays(-daysAgo));
 }

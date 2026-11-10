@@ -80,6 +80,21 @@ public static class ArchidektSyncPlanner
         return listing.ViewCount < MinimumViews ? ListingDecision.TooFewViews : ListingDecision.Fetch;
     }
 
+    /// <summary>
+    /// The versions a fetch treats as read, less the stored decks that don't have the format's
+    /// shape: those were stored before #125 (a 100-card list filed as Standard Brawl, or a deck
+    /// counted with its "Maybe Draw" category), and reading them once more either corrects them or
+    /// drops them. Each such deck costs one read, once: a rejected one leaves the pool.
+    /// </summary>
+    public static IReadOnlyDictionary<string, DateTimeOffset> VersionsToKeep(
+        IReadOnlyDictionary<string, DateTimeOffset> known, IEnumerable<CandidateDeck> stored, FormatDefinition format)
+    {
+        var reread = stored.Where(d => !format.FitsShapeOf(d)).Select(d => d.SourceId).ToHashSet(StringComparer.Ordinal);
+        return reread.Count == 0
+            ? known
+            : known.Where(v => !reread.Contains(v.Key)).ToDictionary(v => v.Key, v => v.Value, StringComparer.Ordinal);
+    }
+
     public static bool MayStopEarly(DateTimeOffset? fullWalkAt, DateTimeOffset now) =>
         fullWalkAt is { } walked && now - walked < FullWalkValidity;
 

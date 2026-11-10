@@ -49,5 +49,6 @@ public class CreatorVideoPricingTests
                     .Select(i => new CardGap($"Carta {i}", DeckBoard.Main, 4, 0, null, CardRarity.Unknown))],
             UnavailableOnArena: [.. Enumerable.Range(0, unrecognised).Select(i => $"Carta {i}")],
             IllegalInFormat: Enumerable.Range(0, illegal).Select(i => $"Illegal {i}").ToList(),
-            Colors: "R");
+            Colors: "R",
+            FitsFormatShape: true);
 }
