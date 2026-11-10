@@ -24,7 +24,15 @@ internal sealed class ArchidektDeckDetail
 {
     [JsonPropertyName("id")] public int Id { get; set; }
     [JsonPropertyName("name")] public string Name { get; set; } = "";
+    [JsonPropertyName("categories")] public List<ArchidektCategory>? Categories { get; set; }
     [JsonPropertyName("cards")] public List<ArchidektCardEntry>? Cards { get; set; }
+}
+
+/// <summary>A deck's own category. Null when Archidekt leaves the flag out: count the card.</summary>
+internal sealed class ArchidektCategory
+{
+    [JsonPropertyName("name")] public string Name { get; set; } = "";
+    [JsonPropertyName("includedInDeck")] public bool? IncludedInDeck { get; set; }
 }
 
 internal sealed class ArchidektCardEntry

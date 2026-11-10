@@ -72,7 +72,7 @@ public sealed class WildcardCalculator(CardDatabaseStore cardStore)
         }
 
         return new DeckAnalysisResult(
-            deck, needed, ownedCopies, totalCopies, gaps, unavailable, illegal, SortColors(colors));
+            deck, needed, ownedCopies, totalCopies, gaps, unavailable, illegal, SortColors(colors), format.FitsShapeOf(deck));
     }
 
     /// <summary>Colors in WUBRG order, the way Magic always writes them.</summary>

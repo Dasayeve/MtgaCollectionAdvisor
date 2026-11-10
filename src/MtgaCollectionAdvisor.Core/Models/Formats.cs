@@ -23,7 +23,7 @@ public sealed record FormatDefinition(
     /// </summary>
     public bool FitsShapeOf(CandidateDeck deck)
     {
-        var size = deck.Cards.Where(c => c.Board != DeckBoard.Sideboard).Sum(c => c.Quantity);
+        var size = deck.MainSize;
         return deck.Cards.Any(c => c.Board == DeckBoard.Commander) == HasCommander
                && size >= MinimumDeckSize
                && (MaximumDeckSize is not { } maximum || size <= maximum);

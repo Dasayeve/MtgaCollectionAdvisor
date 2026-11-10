@@ -127,12 +127,15 @@ public static class DeckFilter
             _ => query
         };
 
-        // Deck sources let anyone file any list under any format, and a list can name a
-        // card that never came to Arena. Dropping those is right for suggestions and
+        // Deck sources let anyone file any list under any format, of any size (#125), and a list
+        // can name a card that never came to Arena. Dropping those is right for suggestions and
         // wrong for a deck the user asked for, so it is a switch rather than a rule.
         if (!criteria.IncludeUnplayable)
         {
-            query = query.Where(d => d.LegalInFormat && d.FullyPlayableOnArena);
+            // A pinned deck stays whatever its shape: the player is tracking it, and hiding it would
+            // leave the pin with no way to see or remove it (#125).
+            query = query.Where(d => d.LegalInFormat && d.FullyPlayableOnArena
+                && (d.FitsFormatShape || criteria.PinnedSourceIds.Contains(d.Deck.SourceId)));
         }
 
         if (criteria.Colors.Count > 0)

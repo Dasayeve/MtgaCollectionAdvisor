@@ -39,13 +39,42 @@ public sealed class BrawlTests
     }
 
     [Fact]
+    public void Accepts_Should_RejectWrongShape_ForAKnownFormat()
+    {
+        // #125: Archidekt lets anyone file any list under any format.
+        var commander = ("Tinybones, Bauble Burglar", 1, DeckBoard.Commander);
+        var standardBrawl = Deck(commander, ("Swamp", 59, DeckBoard.Main));
+        var oneTooMany = Deck(commander, ("Swamp", 60, DeckBoard.Main));
+        var sixtyNoCommander = Deck(("Swamp", 60, DeckBoard.Main));
+        var hundredNoCommander = Deck(("Swamp", 100, DeckBoard.Main));
+
+        Assert.True(ArchidektClient.Accepts(standardBrawl, Formats.StandardBrawl, formatKnown: true));
+        Assert.False(ArchidektClient.Accepts(oneTooMany, Formats.StandardBrawl, formatKnown: true));
+        Assert.False(ArchidektClient.Accepts(sixtyNoCommander, Formats.StandardBrawl, formatKnown: true));
+        Assert.False(ArchidektClient.Accepts(hundredNoCommander, Formats.Brawl, formatKnown: true));
+        Assert.False(ArchidektClient.Accepts(standardBrawl, Formats.Standard, formatKnown: true));
+        Assert.True(ArchidektClient.Accepts(sixtyNoCommander, Formats.Standard, formatKnown: true));
+    }
+
+    [Fact]
+    public void Accepts_Should_NeedOnlyTheMinimumSize_ForACreatorLink()
+    {
+        // A creator video's link is read without knowing its format; pricing picks it later.
+        var brawl = Deck(("Tinybones, Bauble Burglar", 1, DeckBoard.Commander), ("Swamp", 99, DeckBoard.Main));
+        var draft = Deck(("Swamp", 40, DeckBoard.Main));
+
+        Assert.True(ArchidektClient.Accepts(brawl, Formats.Standard, formatKnown: false));
+        Assert.False(ArchidektClient.Accepts(draft, Formats.Standard, formatKnown: false));
+    }
+
+    [Fact]
     public void PickBest_Should_TellTheTwoBrawlsApartBySize()
     {
         var sixty = Deck(("Tinybones, Bauble Burglar", 1, DeckBoard.Commander), ("Swamp", 59, DeckBoard.Main));
         var (format, _) = Creators.CreatorVideoPricing.PickBest(
         [
-            (Formats.Brawl, Analysis(sixty, illegal: 0)),
-            (Formats.StandardBrawl, Analysis(sixty, illegal: 2)),
+            (Formats.Brawl, Analysis(sixty, illegal: 0, Formats.Brawl)),
+            (Formats.StandardBrawl, Analysis(sixty, illegal: 2, Formats.StandardBrawl)),
         ]);
 
         Assert.Equal(Formats.StandardBrawl.Key, format.Key);
@@ -58,9 +87,9 @@ public sealed class BrawlTests
         var sixty = Deck(("Psychic Frog", 4, DeckBoard.Main), ("Swamp", 56, DeckBoard.Main));
         var (format, _) = Creators.CreatorVideoPricing.PickBest(
         [
-            (Formats.Standard, Analysis(sixty, illegal: 8)),
-            (Formats.Pioneer, Analysis(sixty, illegal: 6)),
-            (Formats.Brawl, Analysis(sixty, illegal: 0)),
+            (Formats.Standard, Analysis(sixty, illegal: 8, Formats.Standard)),
+            (Formats.Pioneer, Analysis(sixty, illegal: 6, Formats.Pioneer)),
+            (Formats.Brawl, Analysis(sixty, illegal: 0, Formats.Brawl)),
         ]);
 
         Assert.Equal(Formats.Pioneer.Key, format.Key);
@@ -72,17 +101,18 @@ public sealed class BrawlTests
         var brawl = Deck(("Tinybones, Bauble Burglar", 1, DeckBoard.Commander), ("Swamp", 99, DeckBoard.Main));
         var (format, _) = Creators.CreatorVideoPricing.PickBest(
         [
-            (Formats.Standard, Analysis(brawl, illegal: 0)),
-            (Formats.Pioneer, Analysis(brawl, illegal: 0)),
-            (Formats.Brawl, Analysis(brawl, illegal: 1)),
+            (Formats.Standard, Analysis(brawl, illegal: 0, Formats.Standard)),
+            (Formats.Pioneer, Analysis(brawl, illegal: 0, Formats.Pioneer)),
+            (Formats.Brawl, Analysis(brawl, illegal: 1, Formats.Brawl)),
         ]);
 
         Assert.Equal(Formats.Brawl.Key, format.Key);
     }
 
-    private static DeckAnalysisResult Analysis(CandidateDeck deck, int illegal) =>
+    // As WildcardCalculator analyses a deck for a format: its shape verdict comes with it.
+    private static DeckAnalysisResult Analysis(CandidateDeck deck, int illegal, FormatDefinition format) =>
         new(deck, WildcardNeed.Zero, 0, deck.Cards.Sum(c => c.Quantity), [], [],
-            [.. Enumerable.Range(0, illegal).Select(i => $"Illegal {i}")], "B");
+            [.. Enumerable.Range(0, illegal).Select(i => $"Illegal {i}")], "B", format.FitsShapeOf(deck));
 
     [Fact]
     public void IsLegalIn_Should_ReadEachFormatsOwnColumn()
@@ -180,7 +210,7 @@ public sealed class BrawlTests
         };
         var analysis = new DeckAnalysisResult(
             Deck(("Duress", 1, DeckBoard.Main), ("Tinybones, Bauble Burglar", 1, DeckBoard.Commander)),
-            WildcardNeed.Zero, 0, 2, gaps, [], [], "B");
+            WildcardNeed.Zero, 0, 2, gaps, [], [], "B", FitsFormatShape: true);
 
         Assert.Equal($"1 Tinybones, Bauble Burglar{N}1 Duress{N}", LigaMagicList.Write(analysis));
     }

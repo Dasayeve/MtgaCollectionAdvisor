@@ -69,7 +69,7 @@ public sealed class PackSuggestionServiceTests : IAsyncLifetime
                 new CardGap("Plains", DeckBoard.Main, 8, 0, 3, CardRarity.Basic),
                 new CardGap("Not On Arena", DeckBoard.Main, 2, 0, null, CardRarity.Unknown),
             ],
-            ["Not On Arena"], [], "W");
+            ["Not On Arena"], [], "W", FitsFormatShape: true);
 
         var suggestion = await new PackSuggestionService(_cards).SuggestAsync(deck, Formats.Standard);
 

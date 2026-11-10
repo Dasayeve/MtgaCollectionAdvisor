@@ -21,7 +21,7 @@ public static class CreatorVideoPricing
 
         return perFormat
             .Select((candidate, index) => (candidate, index))
-            .OrderByDescending(x => x.candidate.Format.FitsShapeOf(x.candidate.Analysis.Deck))
+            .OrderByDescending(x => x.candidate.Analysis.FitsFormatShape)
             .ThenBy(x => x.candidate.Analysis.IllegalInFormat.Count)
             .ThenBy(x => FormatOrder(x.candidate.Format))
             .ThenBy(x => x.index)
