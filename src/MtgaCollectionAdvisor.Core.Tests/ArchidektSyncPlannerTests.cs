@@ -118,11 +118,8 @@ public class ArchidektSyncPlannerTests
 
     // ---------- One click, every format (#124) ----------
 
-    private static DeckSyncReport Fetched(int added = 0, int pool = 10, bool capped = false) =>
-        new(added, 0, 0, pool, 0, capped, StoppedBecause: null, CooldownRemaining: null);
-
-    private static DeckSyncReport OnCooldown(int minutes) =>
-        new(0, 0, 0, 0, 0, false, null, CooldownRemaining: TimeSpan.FromMinutes(minutes));
+    private static DeckSyncReport Fetched(int added = 0, int pool = 10, bool capped = false, int requests = 0) =>
+        new(added, 0, 0, pool, requests, capped, StoppedBecause: null, CooldownRemaining: null);
 
     private static DeckSyncReport Failed(string reason) =>
         new(1, 0, 0, 5, 1, false, StoppedBecause: reason, CooldownRemaining: null);
@@ -130,16 +127,23 @@ public class ArchidektSyncPlannerTests
     private static (FormatDefinition, DateTimeOffset?)[] NeverFetched() =>
         [.. Formats.All.Select(f => (f, (DateTimeOffset?)null))];
 
-    private static async Task<(MultiFormatSyncReport Report, List<string> Called)> Run(
-        IReadOnlyList<(FormatDefinition, DateTimeOffset?)> formats, Func<FormatDefinition, DeckSyncReport> result)
+    private static async Task<(MultiFormatSyncReport Report, List<(string Format, int Budget)> Called)> Run(
+        IReadOnlyList<(FormatDefinition, DateTimeOffset?)> formats, Func<FormatDefinition, int, DeckSyncReport> result)
     {
-        var called = new List<string>();
-        var report = await ArchidektSyncPlanner.SyncFormatsAsync(formats, format =>
+        var called = new List<(string, int)>();
+        var report = await ArchidektSyncPlanner.SyncFormatsAsync(formats, Now, (format, budget) =>
         {
-            called.Add(format.Key);
-            return Task.FromResult(result(format));
+            called.Add((format.Key, budget));
+            return Task.FromResult(result(format, budget));
         });
         return (report, called);
+    }
+
+    [Fact]
+    public void Archidekt_Should_HaveAnId_ForEveryFormat()
+    {
+        // Fetch decks walks them all: one without an id fails the run before a request is sent.
+        Assert.All(Formats.All, f => Assert.True(ArchidektClient.Supports(f), f.Key));
     }
 
     [Fact]
@@ -167,63 +171,85 @@ public class ArchidektSyncPlannerTests
     [Fact]
     public async Task SyncFormats_Should_RunEveryFormat_InOrder()
     {
-        var (report, called) = await Run(NeverFetched(), _ => Fetched());
+        var (report, called) = await Run(NeverFetched(), (_, _) => Fetched());
 
-        Assert.Equal(Formats.All.Select(f => f.Key), called);
+        Assert.Equal(Formats.All.Select(f => f.Key), called.Select(c => c.Format));
         Assert.Empty(report.NotReached);
         Assert.Null(report.Stopped);
     }
 
     [Fact]
-    public async Task SyncFormats_Should_SkipCooldown_AndGoOn()
+    public async Task SyncFormats_Should_SendNothing_WithinTheCooldownOfTheLastFormatFetched()
     {
-        var (report, called) = await Run(NeverFetched(), f => f == Formats.Pioneer ? OnCooldown(3) : Fetched());
+        // A run a 429 ended leaves the formats it never reached without a cooldown of their own:
+        // the next click must not go straight on with them.
+        var (report, called) = await Run(
+        [
+            (Formats.Standard, Now.AddDays(-1)),
+            (Formats.Pioneer, Now.AddMinutes(-2)),
+            (Formats.Brawl, null),
+            (Formats.StandardBrawl, null),
+        ], (_, _) => Fetched());
 
-        Assert.Equal(4, called.Count);
-        Assert.Empty(report.NotReached);
+        Assert.Empty(called);
+        Assert.Equal(4, report.NotReached.Count);
+        Assert.Equal("Archidekt was checked moments ago - try again in 3 min.", report.Describe());
     }
 
     [Fact]
     public async Task SyncFormats_Should_StopAtTheFirstFailure()
     {
-        var (report, called) = await Run(NeverFetched(), f => f == Formats.Pioneer ? Failed("HTTP 429") : Fetched());
+        var (report, called) = await Run(NeverFetched(), (f, _) => f == Formats.Pioneer ? Failed("HTTP 429") : Fetched());
 
-        Assert.Equal([Formats.Standard.Key, Formats.Pioneer.Key], called);
+        Assert.Equal([Formats.Standard.Key, Formats.Pioneer.Key], called.Select(c => c.Format));
         Assert.Equal([Formats.Brawl, Formats.StandardBrawl], report.NotReached);
         Assert.Equal(Formats.Pioneer, report.Stopped?.Format);
     }
 
     [Fact]
-    public async Task SyncFormats_Should_GoOn_AfterACappedFormat()
+    public async Task SyncFormats_Should_ShareOneDetailCap_AcrossTheFormats()
     {
-        var (report, called) = await Run(NeverFetched(), f => f == Formats.Standard ? Fetched(capped: true) : Fetched());
+        var (report, called) = await Run(NeverFetched(), (_, budget) =>
+            Fetched(requests: Math.Min(budget, 100), capped: budget <= 100));
+
+        Assert.Equal([(Formats.Standard.Key, ArchidektSyncPlanner.MaxDetailRequests), (Formats.Pioneer.Key, 50)], called);
+        Assert.Equal([Formats.Brawl, Formats.StandardBrawl], report.NotReached);
+        Assert.Null(report.Stopped);
+        Assert.EndsWith("More remain for Pioneer, Brawl, Standard Brawl - fetch again to continue.", report.Describe());
+    }
+
+    [Fact]
+    public async Task SyncFormats_Should_GoOn_AfterACappedFormat_WithRequestsLeft()
+    {
+        var (report, called) = await Run(NeverFetched(), (f, _) => f == Formats.Standard ? Fetched(capped: true) : Fetched());
 
         Assert.Equal(4, called.Count);
         Assert.Null(report.Stopped);
     }
 
     [Fact]
-    public async Task Describe_Should_SumChanges_AndNameSkippedAndNotReached()
+    public async Task Describe_Should_SumChanges_AndNameWhatWasNotReached()
     {
-        var (report, _) = await Run(NeverFetched(), f =>
+        var (report, _) = await Run(NeverFetched(), (f, _) =>
             f == Formats.Standard ? Fetched(added: 3, pool: 869, capped: true) :
-            f == Formats.Pioneer ? OnCooldown(2) :
             f == Formats.Brawl ? Failed("Archidekt answered 429 (too many requests).") :
-            Fetched());
+            Fetched(pool: 37));
 
         Assert.Equal(
-            "Archidekt: 4 new, 0 updated, 0 removed. Pool: Standard 869, Brawl 5. Checked moments ago: Pioneer. "
-            + "More remain for Standard - fetch again to continue. "
+            "Archidekt: 4 new, 0 updated, 0 removed. Pool: Standard 869, Pioneer 37, Brawl 5. "
             + "Stopped early at Brawl, kept what was read: Archidekt answered 429 (too many requests). Not reached: Standard Brawl.",
             report.Describe());
     }
 
     [Fact]
-    public async Task Describe_Should_SayTryAgain_WhenEveryFormatIsOnCooldown()
+    public async Task Describe_Should_SayWhatRemains_When_NothingFailed()
     {
-        var (report, _) = await Run(NeverFetched(), f => OnCooldown(f == Formats.Brawl ? 1 : 4));
+        var (report, _) = await Run(NeverFetched(), (f, _) => Fetched(pool: 10, capped: f == Formats.Brawl));
 
-        Assert.Equal("Archidekt was checked moments ago - try again in 1 min.", report.Describe());
+        Assert.Equal(
+            "No new decks on Archidekt since the last fetch. Pool: Standard 10, Pioneer 10, Brawl 10, Standard Brawl 10. "
+            + "More remain for Brawl - fetch again to continue.",
+            report.Describe());
     }
 
     private static ArchidektListing Listing(int id, int views = 500, int daysAgo = 2) =>

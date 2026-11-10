@@ -32,33 +32,38 @@ public sealed record DeckSyncReport(
     /// <summary>The line the status bar shows once the fetch is over.</summary>
     public string Describe()
     {
-        if (CooldownRemaining is { } wait)
-        {
-            var minutes = Math.Max(1, (int)Math.Ceiling(wait.TotalMinutes));
-            return $"Archidekt was checked moments ago - try again in {minutes} min.";
-        }
+        if (CooldownRemaining is { } wait) return DescribeCooldown(wait);
 
-        var changes = Added + Updated + Removed == 0
-            ? "No new decks on Archidekt since the last fetch."
-            : $"Archidekt: {Added} new, {Updated} updated, {Removed} removed.";
-
-        var summary = $"{changes} {PoolSize} decks in the pool.";
+        var summary = $"{DescribeChanges(Added, Updated, Removed)} {PoolSize} decks in the pool.";
         if (StoppedBecause is not null) return $"{summary} Stopped early, kept what was read: {StoppedBecause}";
         if (CutShort) return $"{summary} More remain - fetch again to continue.";
         return summary;
     }
+
+    internal static string DescribeCooldown(TimeSpan wait)
+    {
+        var minutes = Math.Max(1, (int)Math.Ceiling(wait.TotalMinutes));
+        return $"Archidekt was checked moments ago - try again in {minutes} min.";
+    }
+
+    internal static string DescribeChanges(int added, int updated, int removed) =>
+        added + updated + removed == 0
+            ? "No new decks on Archidekt since the last fetch."
+            : $"Archidekt: {added} new, {updated} updated, {removed} removed.";
 }
 
 /// <summary>What one fetch did for one format, within a run over all of them (#124).</summary>
 public sealed record FormatSyncReport(FormatDefinition Format, DeckSyncReport Report);
 
 /// <summary>
-/// What one click on Fetch decks did across the formats (#124): those it ran, in order (skipped
-/// for their cooldown included), and those a failed read kept it from reaching.
+/// What one click on Fetch decks did across the formats (#124): those it ran, in order, and those
+/// it didn't reach, because a read failed or the click's detail requests ran out.
+/// <see cref="CooldownRemaining"/> set means nothing was sent.
 /// </summary>
 public sealed record MultiFormatSyncReport(
     IReadOnlyList<FormatSyncReport> Ran,
-    IReadOnlyList<FormatDefinition> NotReached)
+    IReadOnlyList<FormatDefinition> NotReached,
+    TimeSpan? CooldownRemaining = null)
 {
     /// <summary>The format whose read failed and ended the run; null when none did.</summary>
     public FormatSyncReport? Stopped => Ran.LastOrDefault(r => r.Report.StoppedBecause is not null);
@@ -66,34 +71,24 @@ public sealed record MultiFormatSyncReport(
     /// <summary>The line the status bar shows once the run is over.</summary>
     public string Describe()
     {
-        var fetched = Ran.Where(r => r.Report.CooldownRemaining is null).ToList();
-        var waiting = Ran.Where(r => r.Report.CooldownRemaining is not null).ToList();
+        if (CooldownRemaining is { } wait) return DeckSyncReport.DescribeCooldown(wait);
 
-        if (fetched.Count == 0)
-        {
-            var wait = waiting.Select(r => r.Report.CooldownRemaining!.Value).DefaultIfEmpty(TimeSpan.Zero).Min();
-            var minutes = Math.Max(1, (int)Math.Ceiling(wait.TotalMinutes));
-            return $"Archidekt was checked moments ago - try again in {minutes} min.";
-        }
-
-        int added = fetched.Sum(r => r.Report.Added), updated = fetched.Sum(r => r.Report.Updated),
-            removed = fetched.Sum(r => r.Report.Removed);
         var parts = new List<string>
         {
-            added + updated + removed == 0
-                ? "No new decks on Archidekt since the last fetch."
-                : $"Archidekt: {added} new, {updated} updated, {removed} removed.",
-            $"Pool: {string.Join(", ", fetched.Select(r => $"{r.Format.DisplayName} {r.Report.PoolSize}"))}.",
+            DeckSyncReport.DescribeChanges(
+                Ran.Sum(r => r.Report.Added), Ran.Sum(r => r.Report.Updated), Ran.Sum(r => r.Report.Removed)),
+            $"Pool: {string.Join(", ", Ran.Select(r => $"{r.Format.DisplayName} {r.Report.PoolSize}"))}.",
         };
-        if (waiting.Count > 0) parts.Add($"Checked moments ago: {Names(waiting.Select(r => r.Format))}.");
-
-        var capped = fetched.Where(r => r.Report.CutShort).Select(r => r.Format).ToList();
-        if (capped.Count > 0) parts.Add($"More remain for {Names(capped)} - fetch again to continue.");
 
         if (Stopped is { } stopped)
         {
             var stop = $"Stopped early at {stopped.Format.DisplayName}, kept what was read: {stopped.Report.StoppedBecause}";
             parts.Add(NotReached.Count > 0 ? $"{stop.TrimEnd('.')}. Not reached: {Names(NotReached)}." : stop);
+        }
+        else
+        {
+            var remain = Ran.Where(r => r.Report.CutShort).Select(r => r.Format).Concat(NotReached).ToList();
+            if (remain.Count > 0) parts.Add($"More remain for {Names(remain)} - fetch again to continue.");
         }
         return string.Join(" ", parts);
 
@@ -114,25 +109,44 @@ public sealed record MultiFormatSyncReport(
 public sealed class ArchidektDeckSync(ArchidektClient client, CuratedDeckStore decks, PinnedDeckStore pins)
 {
     /// <summary>
-    /// One click on Fetch decks (#124): every format, least recently fetched first, each with its
-    /// own cooldown and caps, until the first failed read.
+    /// One click on Fetch decks (#124): every format, least recently fetched first, as one paced
+    /// fetch with one cooldown and one cap (<see cref="ArchidektSyncPlanner.SyncFormatsAsync"/>).
+    /// <paramref name="formatDone"/> runs after each format, so the one on screen shows its decks
+    /// without waiting for the rest.
     /// </summary>
     public async Task<MultiFormatSyncReport> SyncAllAsync(
-        IReadOnlyList<FormatDefinition> formats, IProgress<string> progress, CancellationToken ct = default)
+        IReadOnlyList<FormatDefinition> formats, IProgress<string> progress, Func<FormatDefinition, Task> formatDone,
+        CancellationToken ct = default)
     {
-        var states = new List<(FormatDefinition, DateTimeOffset?)>();
+        var states = new Dictionary<string, DeckSyncState>();
         foreach (var format in formats)
         {
-            states.Add((format, (await decks.LoadSyncStateAsync(format, ct)).LastSyncAt));
+            states[format.Key] = await decks.LoadSyncStateAsync(format, ct);
         }
-        return await ArchidektSyncPlanner.SyncFormatsAsync(states, format => SyncAsync(format, progress, ct));
+
+        var pacer = new RequestPacer();
+        return await ArchidektSyncPlanner.SyncFormatsAsync(
+            [.. formats.Select(f => (f, states[f.Key].LastSyncAt))],
+            DateTimeOffset.UtcNow,
+            async (format, detailBudget) =>
+            {
+                var report = await SyncAsync(format, states[format.Key], pacer, detailBudget, progress, ct);
+                await formatDone(format);
+                return report;
+            });
     }
 
+    /// <summary>One format on its own: the first-run setup's fetch.</summary>
     public async Task<DeckSyncReport> SyncAsync(
-        FormatDefinition format, IProgress<string> progress, CancellationToken ct = default)
+        FormatDefinition format, IProgress<string> progress, CancellationToken ct = default) =>
+        await SyncAsync(format, await decks.LoadSyncStateAsync(format, ct), new RequestPacer(),
+            ArchidektSyncPlanner.MaxDetailRequests, progress, ct);
+
+    private async Task<DeckSyncReport> SyncAsync(
+        FormatDefinition format, DeckSyncState state, RequestPacer pacer, int detailBudget,
+        IProgress<string> progress, CancellationToken ct)
     {
         var now = DateTimeOffset.UtcNow;
-        var state = await decks.LoadSyncStateAsync(format, ct);
 
         if (ArchidektSyncPlanner.CooldownRemaining(state.LastSyncAt, now) is { } wait)
         {
@@ -148,20 +162,15 @@ public sealed class ArchidektDeckSync(ArchidektClient client, CuratedDeckStore d
         var pinned = (await pins.LoadAsync(ct)).Keys.ToHashSet(StringComparer.Ordinal);
         var mayStopEarly = ArchidektSyncPlanner.MayStopEarly(state.FullWalkAt, now);
 
-        int added = 0, updated = 0, detailRequests = 0, requests = 0;
+        int added = 0, updated = 0, detailRequests = 0;
         var fullWalk = false;
         var capped = false;
         string? stoppedBecause = null;
         string? stopCause = null;
 
-        async Task PauseAsync()
-        {
-            if (requests++ > 0) await Task.Delay(ArchidektSyncPlanner.RequestSpacing, ct);
-        }
-
         for (var page = 1; ; page++)
         {
-            await PauseAsync();
+            await pacer.PauseAsync(ct);
             progress.Report($"Searching Archidekt ({format.DisplayName}), page {page}...");
 
             ArchidektSearchPage search;
@@ -191,15 +200,15 @@ public sealed class ArchidektDeckSync(ArchidektClient client, CuratedDeckStore d
                 if (decision != ListingDecision.Fetch) continue;
 
                 pageHadWork = true;
-                if (detailRequests >= ArchidektSyncPlanner.MaxDetailRequests)
+                if (detailRequests >= detailBudget)
                 {
                     capped = true;
                     break;
                 }
 
-                await PauseAsync();
+                await pacer.PauseAsync(ct);
                 detailRequests++;
-                progress.Report($"Reading deck {detailRequests} (of up to {ArchidektSyncPlanner.MaxDetailRequests}) from Archidekt: {listing.Name}");
+                progress.Report($"Reading deck {detailRequests} (of up to {detailBudget}) from Archidekt: {listing.Name}");
 
                 try
                 {
@@ -261,5 +270,20 @@ public sealed class ArchidektDeckSync(ArchidektClient client, CuratedDeckStore d
         var duplicates = fetched.Where(d => !kept.Contains(d.SourceId)).Select(d => d.SourceId).ToList();
 
         return await decks.RemoveFetchedAsync(duplicates, ct);
+    }
+
+    /// <summary>
+    /// The pause before every request after the first (<see cref="ArchidektSyncPlanner.RequestSpacing"/>),
+    /// held across the formats of a click, so the next format's first search isn't a burst either.
+    /// </summary>
+    private sealed class RequestPacer
+    {
+        private bool _sent;
+
+        public async Task PauseAsync(CancellationToken ct)
+        {
+            if (_sent) await Task.Delay(ArchidektSyncPlanner.RequestSpacing, ct);
+            _sent = true;
+        }
     }
 }

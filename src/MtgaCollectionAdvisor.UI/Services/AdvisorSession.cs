@@ -181,14 +181,11 @@ public sealed partial class AdvisorSession(AppConfig config, ILogger<AdvisorSess
 
     private async Task FetchAllDecksAsync(StatusReport report)
     {
-        var result = await services.ArchidektDeckSync.SyncAllAsync(Formats.All, new ImmediateProgress(message => report(message)));
-        if (result.Stopped is { } stopped)
-        {
-            log.LogWarning("Archidekt fetch for {Format} stopped early: {Reason} ({Cause}); not reached: {NotReached}",
-                stopped.Format.DisplayName, stopped.Report.StoppedBecause, stopped.Report.StopCause ?? "unknown cause",
-                result.NotReached.Count == 0 ? "none" : string.Join(", ", result.NotReached.Select(f => f.DisplayName)));
-        }
-        await ReloadRankingAsync();
+        // The format on screen shows its new decks as soon as it is done, not after the others.
+        var result = await services.ArchidektDeckSync.SyncAllAsync(
+            Formats.All, new ImmediateProgress(message => report(message)),
+            format => format.Key == Format.Key ? ReloadRankingAsync() : Task.CompletedTask);
+        if (result.Stopped is { } stopped) LogFetchStopped(stopped.Format, stopped.Report, result.NotReached);
         report(result.Describe());
     }
 
@@ -196,15 +193,16 @@ public sealed partial class AdvisorSession(AppConfig config, ILogger<AdvisorSess
     private async Task<DeckSyncReport> FetchDecksAsync(FormatDefinition format, StatusReport report)
     {
         var result = await services.ArchidektDeckSync.SyncAsync(format, new ImmediateProgress(message => report(message)));
-        if (result.StoppedBecause is not null)
-        {
-            log.LogWarning("Archidekt fetch for {Format} stopped early: {Reason} ({Cause})",
-                format.DisplayName, result.StoppedBecause, result.StopCause ?? "unknown cause");
-        }
+        if (result.StoppedBecause is not null) LogFetchStopped(format, result, notReached: []);
         await ReloadRankingAsync();
         report(result.Describe());
         return result;
     }
+
+    private void LogFetchStopped(FormatDefinition format, DeckSyncReport result, IReadOnlyList<FormatDefinition> notReached) =>
+        log.LogWarning("Archidekt fetch for {Format} stopped early: {Reason} ({Cause}); not reached: {NotReached}",
+            format.DisplayName, result.StoppedBecause, result.StopCause ?? "unknown cause",
+            notReached.Count == 0 ? "none" : string.Join(", ", notReached.Select(f => f.DisplayName)));
 
     private async Task ImportCardsAsync(StatusReport report)
     {
@@ -544,12 +542,16 @@ public sealed partial class AdvisorSession(AppConfig config, ILogger<AdvisorSess
     {
         var running = MemoryCollectionSyncService.IsMtgaRunning();
         var justStarted = running && !_mtgaWasRunning;
+
+        // While another operation runs (a fetch over every format takes minutes), the start
+        // isn't taken yet: a later tick scans, rather than none until Arena's next start.
+        if (justStarted && IsBusy && Setup is null) return;
         _mtgaWasRunning = running;
 
         // The setup screen runs its own MTG Arena step; the page it would scan for isn't shown.
         if (Setup is not null) return;
 
-        if (justStarted && !IsBusy) await ScanCollectionAsync();
+        if (justStarted) await ScanCollectionAsync();
     }
 
     /// <summary>

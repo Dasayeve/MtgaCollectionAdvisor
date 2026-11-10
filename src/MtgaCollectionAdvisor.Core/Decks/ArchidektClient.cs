@@ -27,6 +27,9 @@ public sealed class ArchidektClient(HttpClient httpClient)
 
     public const string SourcePrefix = "archidekt:";
 
+    /// <summary>Whether Archidekt has an id for the format: Fetch decks walks every format (#124).</summary>
+    internal static bool Supports(FormatDefinition format) => FormatIds.ContainsKey(format.Key);
+
     public static HttpClient CreateHttpClient()
     {
         var client = new HttpClient { BaseAddress = new Uri("https://archidekt.com/") };
