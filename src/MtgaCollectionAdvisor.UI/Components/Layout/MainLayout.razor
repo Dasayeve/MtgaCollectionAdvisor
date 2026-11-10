@@ -46,7 +46,7 @@ else
                     Capture collection
                 </button>
                 <button disabled="@Session.IsBusy"
-                        title="Adds the latest public @Session.Format.DisplayName decks from Archidekt to the pool, reading only what is new or changed since the last fetch. Pinned decks are never touched."
+                        title="Adds the latest public decks of every format from Archidekt to the pool, the least recently fetched format first, reading only what is new or changed since the last fetch. Pinned decks are never touched."
                         @onclick="() => Session.FetchDecksAsync()">
                     Fetch decks
                 </button>
