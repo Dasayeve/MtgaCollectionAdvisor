@@ -108,7 +108,7 @@
         (CardRarity.Common, "common", "c"),
     ];
 
-    private RenderFragment RenderCard(PackCard card) => @<div class="card-row missing">
+    private RenderFragment RenderCard(PackCard card) => @<div class="card-row">
         <span class="card-qty">@card.Missing</span>
         <span class="card-name">
             @if (card.ImageUrl is { } front)
